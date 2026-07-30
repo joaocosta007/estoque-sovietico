@@ -85,7 +85,7 @@ export async function POST(request: Request) {
     }
 
     const saleId = crypto.randomUUID();
-    const statements = [
+    const statements: D1PreparedStatement[] = [
       env.DB.prepare(
         `INSERT INTO sales
           (id, subtotal_cents, discount_cents, total_cents, payment_method, status)
@@ -97,7 +97,25 @@ export async function POST(request: Request) {
         totalCents,
         body.paymentMethod?.trim() || "pix",
       ),
-      ...normalizedItems.map((item) =>
+    ];
+
+    for (const item of normalizedItems) {
+      const guardId = crypto.randomUUID();
+      statements.push(
+        env.DB.prepare(
+          `INSERT INTO sale_guards (id, ok)
+           SELECT ?, CASE
+             WHEN active = 1 AND stock_milli >= ? THEN 1
+             ELSE 0
+           END
+           FROM products
+           WHERE id = ?`,
+        ).bind(guardId, item.quantityMilli, item.productId),
+        env.DB.prepare(
+          `UPDATE products
+           SET stock_milli = stock_milli - ?, updated_at = CURRENT_TIMESTAMP
+           WHERE id = ?`,
+        ).bind(item.quantityMilli, item.productId),
         env.DB.prepare(
           `INSERT INTO sale_items
             (id, sale_id, product_id, product_name, quantity_milli,
@@ -112,8 +130,19 @@ export async function POST(request: Request) {
           item.product.sale_price_cents,
           item.lineTotalCents,
         ),
-      ),
-    ];
+        env.DB.prepare(
+          `INSERT INTO stock_movements
+            (id, product_id, type, quantity_milli, reference_id, note)
+           VALUES (?, ?, 'sale', ?, ?, 'Baixa por venda')`,
+        ).bind(
+          crypto.randomUUID(),
+          item.productId,
+          -item.quantityMilli,
+          saleId,
+        ),
+        env.DB.prepare("DELETE FROM sale_guards WHERE id = ?").bind(guardId),
+      );
+    }
 
     await env.DB.batch(statements);
     return Response.json(
@@ -122,10 +151,12 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Falha inesperada";
-    if (message.includes("insufficient_stock")) {
+    if (
+      message.includes("sale_guards_ok") ||
+      message.includes("CHECK constraint failed")
+    ) {
       return Response.json({ error: "Estoque insuficiente." }, { status: 409 });
     }
     return Response.json({ error: message }, { status: 500 });
   }
 }
-

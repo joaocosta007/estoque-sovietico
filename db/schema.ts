@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  check,
   index,
   integer,
   sqliteTable,
@@ -78,4 +79,15 @@ export const stockMovements = sqliteTable(
       table.createdAt,
     ),
   ],
+);
+
+// Linhas efêmeras usadas dentro do batch de venda para forçar rollback quando
+// o saldo é insuficiente. Cada guarda é removida no fim da mesma transação.
+export const saleGuards = sqliteTable(
+  "sale_guards",
+  {
+    id: text("id").primaryKey(),
+    ok: integer("ok").notNull(),
+  },
+  (table) => [check("sale_guards_ok", sql`${table.ok} = 1`)],
 );

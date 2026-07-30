@@ -61,6 +61,21 @@ O endpoint funcional `POST /api/v1/sales` está em
 `backend/app/main.py`; sua transação de venda, kit, estoque FIFO, caixa e fiado
 está em `backend/app/services/sales.py`.
 
+## Estado da versão publicada
+
+A PWA publicada usa uma base SQLite/D1 privada e começa sem dados. Este primeiro
+incremento operacional já permite:
+
+- cadastrar, editar e arquivar produtos;
+- definir preço, saldo inicial e estoque mínimo;
+- registrar entradas de mercadoria;
+- registrar vendas e baixar o estoque transacionalmente;
+- consultar faturamento e vendas recentes no painel.
+
+O FastAPI/PostgreSQL continua no repositório como backend-alvo para os módulos
+mais avançados. Clientes, fiado, despesas, RBAC, kits e relatórios ainda serão
+conectados à interface em incrementos posteriores.
+
 ## Exemplo de venda
 
 ```bash
@@ -79,4 +94,3 @@ curl -X POST http://localhost:8000/api/v1/sales \
 
 Os headers simulam o contexto de um JWT nesta base inicial. Antes de produção,
 troque-os por autenticação com hash Argon2id, JWT curto e refresh token rotativo.
-

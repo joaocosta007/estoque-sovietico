@@ -15,9 +15,6 @@ const moneyFormatter = new Intl.NumberFormat("pt-BR", {
   currency: "BRL",
 });
 
-// Substitua pelo número comercial no formato internacional, sem +, espaços ou traços.
-const WHATSAPP_NUMBER = "5500000000000";
-
 function ProductImage({ product }: { product: CatalogProduct }) {
   if (product.photoUrl) {
     return (
@@ -41,9 +38,15 @@ function ProductImage({ product }: { product: CatalogProduct }) {
   );
 }
 
-function ProductCard({ product }: { product: CatalogProduct }) {
+function ProductCard({
+  product,
+  whatsappNumber,
+}: {
+  product: CatalogProduct;
+  whatsappNumber: string;
+}) {
   const message = `Camarada, desejo requisitar o item: ${product.name}`;
-  const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+  const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
 
   return (
     <article
@@ -84,8 +87,14 @@ function ProductCard({ product }: { product: CatalogProduct }) {
             rel="noreferrer"
             className="block rounded-none border-4 border-[#1A1A1A] bg-[#A91D11] px-3 py-4 text-center text-xs font-black uppercase tracking-[0.08em] text-white shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] active:translate-x-1 active:translate-y-1 active:shadow-none"
             aria-label={`Solicitar ${product.name} via WhatsApp`}
+            aria-disabled={!whatsappNumber}
+            onClick={(event) => {
+              if (!whatsappNumber) event.preventDefault();
+            }}
           >
-            Solicitar via WhatsApp →
+            {whatsappNumber
+              ? "Solicitar via WhatsApp →"
+              : "WhatsApp não configurado"}
           </a>
         ) : (
           <p className="border-4 border-[#1A1A1A] bg-gray-200 px-3 py-4 text-center font-mono text-xs font-black uppercase">
@@ -99,6 +108,8 @@ function ProductCard({ product }: { product: CatalogProduct }) {
 
 export function PublicCatalog() {
   const [products, setProducts] = useState<CatalogProduct[]>([]);
+  const [businessName, setBusinessName] = useState("Estoque Soviético");
+  const [whatsappNumber, setWhatsappNumber] = useState("");
   const [query, setQuery] = useState("");
   const [showSoldOut, setShowSoldOut] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -109,9 +120,11 @@ export function PublicCatalog() {
     const timer = window.setTimeout(async () => {
       try {
         // GET público da vitrine: a API retorna apenas nome, preço, foto e disponibilidade.
-        const response = await fetch("/api/catalog", {
-          signal: controller.signal,
-        });
+        const [response, settingsResponse] = await Promise.all([
+          // GET público da vitrine: a API retorna apenas nome, preço, foto e disponibilidade.
+          fetch("/api/catalog", { signal: controller.signal }),
+          fetch("/api/catalog-settings", { signal: controller.signal }),
+        ]);
         const result = (await response.json()) as {
           products?: CatalogProduct[];
           error?: string;
@@ -120,6 +133,14 @@ export function PublicCatalog() {
           throw new Error(result.error || "Não foi possível abrir o catálogo.");
         }
         setProducts(result.products ?? []);
+        if (settingsResponse.ok) {
+          const publicSettings = (await settingsResponse.json()) as {
+            businessName?: string;
+            whatsappNumber?: string;
+          };
+          setBusinessName(publicSettings.businessName || "Estoque Soviético");
+          setWhatsappNumber(publicSettings.whatsappNumber || "");
+        }
       } catch (requestError) {
         if (requestError instanceof DOMException && requestError.name === "AbortError") {
           return;
@@ -167,9 +188,7 @@ export function PublicCatalog() {
             Armazém central
           </p>
           <h1 className="text-4xl font-black uppercase leading-[0.86] tracking-[-0.06em]">
-            Estoque
-            <br />
-            Soviético
+            {businessName}
           </h1>
           <p className="mt-5 border-l-4 border-[#A91D11] pl-3 font-mono text-xs font-bold uppercase leading-5">
             Catálogo de suprimentos disponíveis
@@ -242,6 +261,7 @@ export function PublicCatalog() {
             <ProductCard
               key={`${product.name}-${product.priceCents}-${index}`}
               product={product}
+              whatsappNumber={whatsappNumber}
             />
           ))}
         </section>

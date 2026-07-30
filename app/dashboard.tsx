@@ -2,7 +2,10 @@
 
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
+import { AdminModule, type AdminSection } from "./admin-modules";
 import { DataCard, PrimaryButton, TextInput } from "./components/ui";
+import type { Customer } from "./use-admin-store";
+import { useAdminStore } from "./use-admin-store";
 import type { Product, Sale } from "./use-store";
 import { useStore } from "./use-store";
 
@@ -93,17 +96,24 @@ function PanelScreen({
   products,
   sales,
   todayTotalCents,
+  customers,
   navigate,
 }: {
   products: Product[];
   sales: Sale[];
   todayTotalCents: number;
+  customers: Customer[];
   navigate: Navigate;
 }) {
   const lowStock = products.filter(
     (product) => product.stockMilli <= product.minStockMilli,
   );
   const hasProducts = products.length > 0;
+  const customerDebt = customers.reduce(
+    (total, customer) => total + customer.balanceCents,
+    0,
+  );
+  const debtors = customers.filter((customer) => customer.balanceCents > 0).length;
 
   return (
     <section className="space-y-5 px-4 py-5" aria-label="Painel operacional">
@@ -152,13 +162,13 @@ function PanelScreen({
 
         <DataCard title="Clientes fiado" index="KPI-02">
           <p className="font-mono text-[10px] font-bold uppercase text-gray-600">
-            PRÓXIMO MÓDULO
+            SALDO DEVEDOR
           </p>
           <strong className="mt-3 block text-[1.55rem] font-black leading-none text-[#A91D11]">
-            {formatMoney(0)}
+            {formatMoney(customerDebt)}
           </strong>
           <p className="mt-3 border-t-2 border-[#1A1A1A] pt-2 font-mono text-[10px] font-bold">
-            00 CADASTROS
+            {String(debtors).padStart(2, "0")} DEVEDOR(ES)
           </p>
         </DataCard>
       </div>
@@ -209,15 +219,18 @@ function PanelScreen({
 
 function SalesScreen({
   products,
+  customers,
   createSale,
   navigate,
   notify,
 }: {
   products: Product[];
+  customers: Customer[];
   createSale: (
     productId: string,
     quantityMilli: number,
     paymentMethod: string,
+    customerId?: string,
   ) => Promise<{ id: string; totalCents: number }>;
   navigate: Navigate;
   notify: (message: string) => void;
@@ -225,6 +238,7 @@ function SalesScreen({
   const [selectedId, setSelectedId] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [paymentMethod, setPaymentMethod] = useState("pix");
+  const [customerId, setCustomerId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -240,6 +254,10 @@ function SalesScreen({
       setError("Selecione um produto e informe uma quantidade válida.");
       return;
     }
+    if (paymentMethod === "credit" && !customerId) {
+      setError("Selecione o cliente responsável pela compra fiada.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -247,9 +265,11 @@ function SalesScreen({
         selected.id,
         Math.round(quantityNumber * 1000),
         paymentMethod,
+        customerId || undefined,
       );
       setQuantity("1");
       setSelectedId("");
+      setCustomerId("");
       notify(`VENDA ${sale.id.slice(0, 8)} REGISTRADA`);
     } catch (requestError) {
       setError(
@@ -335,8 +355,37 @@ function SalesScreen({
               <option value="pix">PIX</option>
               <option value="cash">DINHEIRO</option>
               <option value="card">CARTÃO</option>
+              <option value="credit">FIADO / A PRAZO</option>
             </select>
           </label>
+
+          {paymentMethod === "credit" && (
+            <label className="block">
+              <span className="mb-2 block text-xs font-black uppercase tracking-[0.14em]">
+                Cliente responsável
+              </span>
+              <select
+                className="w-full rounded-none border-4 border-[#1A1A1A] bg-white px-4 py-3 font-mono text-sm shadow-[4px_4px_0px_0px_rgba(26,26,26,1)]"
+                value={customerId}
+                onChange={(event) => setCustomerId(event.target.value)}
+                required
+              >
+                <option value="">SELECIONE</option>
+                {customers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>
+                    {customer.name}
+                    {" // DISP. "}
+                    {formatMoney(
+                      Math.max(
+                        0,
+                        customer.creditLimitCents - customer.balanceCents,
+                      ),
+                    )}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <DataCard title="Total da operação" index="CX-01">
             <strong className="text-3xl font-black">{formatMoney(totalCents)}</strong>
@@ -757,16 +806,20 @@ function StockScreen({
   );
 }
 
-const menuEntries = [
-  ["01", "Clientes e fiado", "Em desenvolvimento"],
-  ["02", "Fluxo de caixa", "Vendas já registradas"],
-  ["03", "Fornecedores", "Em desenvolvimento"],
-  ["04", "Relatórios", "Em desenvolvimento"],
-  ["05", "Equipe e acessos", "Em desenvolvimento"],
-  ["06", "Configurações", "Em desenvolvimento"],
+const menuEntries: [string, string, string, AdminSection][] = [
+  ["01", "Clientes e fiado", "Cadastro e livro-caixa", "customers"],
+  ["02", "Fluxo de caixa", "Entradas e despesas", "cash"],
+  ["03", "Fornecedores", "Contatos de reposição", "suppliers"],
+  ["04", "Relatórios", "Indicadores e CSV", "reports"],
+  ["05", "Equipe e acessos", "Permissões RBAC", "staff"],
+  ["06", "Configurações", "Dados do comércio", "settings"],
 ];
 
-function MenuScreen({ notify }: { notify: (message: string) => void }) {
+function MenuScreen({
+  openModule,
+}: {
+  openModule: (section: AdminSection) => void;
+}) {
   return (
     <section className="space-y-5 px-4 py-5" aria-label="Menu administrativo">
       <ScreenTitle
@@ -783,11 +836,11 @@ function MenuScreen({ notify }: { notify: (message: string) => void }) {
         Abrir catálogo do povo ↗
       </a>
       <div className="grid grid-cols-2 gap-4">
-        {menuEntries.map(([code, label, status]) => (
+        {menuEntries.map(([code, label, status, section]) => (
           <button
             key={code}
             className="min-h-36 rounded-none border-4 border-[#1A1A1A] bg-white p-4 text-left shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] active:translate-x-1 active:translate-y-1 active:shadow-none"
-            onClick={() => notify(`${label}: ${status}`)}
+            onClick={() => openModule(section)}
           >
             <span className="block font-mono text-[10px] font-black text-[#A91D11]">
               SETOR // {code}
@@ -805,8 +858,10 @@ function MenuScreen({ notify }: { notify: (message: string) => void }) {
 
 export function Dashboard() {
   const [active, setActive] = useState<NavigationId>("painel");
+  const [adminSection, setAdminSection] = useState<AdminSection | null>(null);
   const [notice, setNotice] = useState("");
   const store = useStore();
+  const admin = useAdminStore();
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
@@ -822,6 +877,7 @@ export function Dashboard() {
 
   function navigate(destination: NavigationId, message?: string) {
     setActive(destination);
+    setAdminSection(null);
     if (message) setNotice(message);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -869,19 +925,36 @@ export function Dashboard() {
             </button>
           </div>
         )}
+        {admin.error && (
+          <div className="mx-4 mt-4 border-4 border-[#1A1A1A] bg-yellow-300 p-3 font-mono text-xs font-black uppercase">
+            FALHA ADMINISTRATIVA // {admin.error}
+            <button
+              className="mt-3 block border-2 border-[#1A1A1A] bg-white px-3 py-2 font-black uppercase"
+              onClick={() => void admin.refresh()}
+            >
+              Tentar novamente
+            </button>
+          </div>
+        )}
 
         {active === "painel" && (
           <PanelScreen
             products={store.products}
             sales={store.sales}
             todayTotalCents={store.todayTotalCents}
+            customers={admin.customers}
             navigate={navigate}
           />
         )}
         {active === "vendas" && (
           <SalesScreen
             products={store.products}
-            createSale={store.createSale}
+            customers={admin.customers}
+            createSale={async (...args) => {
+              const sale = await store.createSale(...args);
+              await admin.refresh();
+              return sale;
+            }}
             navigate={navigate}
             notify={setNotice}
           />
@@ -896,7 +969,35 @@ export function Dashboard() {
             notify={setNotice}
           />
         )}
-        {active === "menu" && <MenuScreen notify={setNotice} />}
+        {active === "menu" && !adminSection && (
+          <MenuScreen openModule={setAdminSection} />
+        )}
+        {active === "menu" && adminSection && (
+          <AdminModule
+            section={adminSection}
+            customers={admin.customers}
+            ledger={admin.ledger}
+            expenses={admin.expenses}
+            suppliers={admin.suppliers}
+            staff={admin.staff}
+            settings={admin.settings}
+            products={store.products}
+            sales={store.sales}
+            todayTotalCents={store.todayTotalCents}
+            onBack={() => setAdminSection(null)}
+            notify={setNotice}
+            createCustomer={admin.createCustomer}
+            updateCustomer={admin.updateCustomer}
+            addLedgerEntry={admin.addLedgerEntry}
+            createExpense={admin.createExpense}
+            toggleExpense={admin.toggleExpense}
+            createSupplier={admin.createSupplier}
+            archiveSupplier={admin.archiveSupplier}
+            createStaff={admin.createStaff}
+            updateStaffPermissions={admin.updateStaffPermissions}
+            saveSettings={admin.saveSettings}
+          />
+        )}
 
         <nav
           className="fixed inset-x-0 bottom-0 z-20 mx-auto grid max-w-md grid-cols-4 border-x-4 border-t-4 border-[#1A1A1A] bg-white"

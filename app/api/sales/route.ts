@@ -11,7 +11,7 @@ type SaleItemInput = {
 export async function GET() {
   try {
     const db = getDb();
-    const rows = await db.select().from(sales).orderBy(desc(sales.createdAt)).limit(20);
+    const rows = await db.select().from(sales).orderBy(desc(sales.createdAt)).limit(500);
     const today = new Date().toISOString().slice(0, 10);
     const todayTotalCents = rows
       .filter((sale) => sale.createdAt.startsWith(today))
@@ -29,6 +29,7 @@ export async function POST(request: Request) {
       items?: SaleItemInput[];
       paymentMethod?: string;
       discountCents?: number;
+      customerId?: string;
     };
     const items = (body.items ?? [])
       .map((item) => ({
@@ -84,20 +85,52 @@ export async function POST(request: Request) {
       );
     }
 
+    const paymentMethod = body.paymentMethod?.trim() || "pix";
+    const customerId = body.customerId?.trim() || null;
+    if (paymentMethod === "credit" && !customerId) {
+      return Response.json(
+        { error: "Selecione o cliente para registrar uma venda fiada." },
+        { status: 400 },
+      );
+    }
+
     const saleId = crypto.randomUUID();
-    const statements: D1PreparedStatement[] = [
+    const statements: D1PreparedStatement[] = [];
+    let creditGuardId = "";
+
+    if (paymentMethod === "credit") {
+      creditGuardId = crypto.randomUUID();
+      statements.push(
+        env.DB.prepare(
+          `INSERT INTO credit_guards (id, ok)
+           SELECT ?, CASE WHEN active = 1 AND
+             COALESCE((
+               SELECT SUM(
+                 CASE WHEN type = 'debit' THEN amount_cents ELSE -amount_cents END
+               )
+               FROM customer_ledger WHERE customer_id = ?
+             ), 0) + ? <= credit_limit_cents
+           THEN 1 ELSE 0 END
+           FROM customers WHERE id = ?`,
+        ).bind(creditGuardId, customerId, totalCents, customerId),
+      );
+    }
+
+    statements.push(
       env.DB.prepare(
         `INSERT INTO sales
-          (id, subtotal_cents, discount_cents, total_cents, payment_method, status)
-         VALUES (?, ?, ?, ?, ?, 'completed')`,
+          (id, customer_id, subtotal_cents, discount_cents, total_cents,
+           payment_method, status)
+         VALUES (?, ?, ?, ?, ?, ?, 'completed')`,
       ).bind(
         saleId,
+        customerId,
         subtotalCents,
         discountCents,
         totalCents,
-        body.paymentMethod?.trim() || "pix",
+        paymentMethod,
       ),
-    ];
+    );
 
     for (const item of normalizedItems) {
       const guardId = crypto.randomUUID();
@@ -144,6 +177,19 @@ export async function POST(request: Request) {
       );
     }
 
+    if (paymentMethod === "credit" && customerId) {
+      statements.push(
+        env.DB.prepare(
+          `INSERT INTO customer_ledger
+            (id, customer_id, type, amount_cents, description, sale_id)
+           VALUES (?, ?, 'debit', ?, 'Venda fiada', ?)`,
+        ).bind(crypto.randomUUID(), customerId, totalCents, saleId),
+        env.DB.prepare("DELETE FROM credit_guards WHERE id = ?").bind(
+          creditGuardId,
+        ),
+      );
+    }
+
     await env.DB.batch(statements);
     return Response.json(
       { sale: { id: saleId, subtotalCents, discountCents, totalCents } },
@@ -153,9 +199,13 @@ export async function POST(request: Request) {
     const message = error instanceof Error ? error.message : "Falha inesperada";
     if (
       message.includes("sale_guards_ok") ||
+      message.includes("credit_guards_ok") ||
       message.includes("CHECK constraint failed")
     ) {
-      return Response.json({ error: "Estoque insuficiente." }, { status: 409 });
+      return Response.json(
+        { error: "Estoque insuficiente ou limite de crédito excedido." },
+        { status: 409 },
+      );
     }
     return Response.json({ error: message }, { status: 500 });
   }

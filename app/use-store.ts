@@ -18,6 +18,7 @@ export type Product = {
 
 export type Sale = {
   id: string;
+  customerId: string | null;
   subtotalCents: number;
   discountCents: number;
   totalCents: number;
@@ -121,6 +122,7 @@ export function useStore() {
     productId: string,
     quantityMilli: number,
     paymentMethod: string,
+    customerId?: string,
   ) {
     const result = await api<{ sale: { id: string; totalCents: number } }>(
       "/api/sales",
@@ -129,6 +131,7 @@ export function useStore() {
         body: JSON.stringify({
           items: [{ productId, quantityMilli }],
           paymentMethod,
+          customerId,
         }),
       },
     );

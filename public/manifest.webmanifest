@@ -1,0 +1,11 @@
+{
+  "name": "Estoque Soviético",
+  "short_name": "Estoque",
+  "description": "Gestão de estoque, vendas e financeiro.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fffef9",
+  "theme_color": "#164e37",
+  "orientation": "portrait-primary"
+}
+

@@ -15,6 +15,7 @@ export const products = sqliteTable(
     sku: text("sku").notNull(),
     barcode: text("barcode"),
     name: text("name").notNull(),
+    photoUrl: text("photo_url"),
     salePriceCents: integer("sale_price_cents").notNull(),
     stockMilli: integer("stock_milli").notNull().default(0),
     minStockMilli: integer("min_stock_milli").notNull().default(0),

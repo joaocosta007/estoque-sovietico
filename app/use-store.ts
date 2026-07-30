@@ -7,6 +7,7 @@ export type Product = {
   sku: string;
   barcode: string | null;
   name: string;
+  photoUrl: string | null;
   salePriceCents: number;
   stockMilli: number;
   minStockMilli: number;
@@ -30,6 +31,7 @@ type ProductPayload = {
   sku: string;
   barcode: string;
   name: string;
+  photoUrl: string;
   salePriceCents: number;
   initialStockMilli?: number;
   minStockMilli: number;

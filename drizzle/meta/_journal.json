@@ -15,6 +15,13 @@
       "when": 1785434591582,
       "tag": "0001_parallel_tenebrous",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1785435297196,
+      "tag": "0002_futuristic_trauma",
+      "breakpoints": true
     }
   ]
 }

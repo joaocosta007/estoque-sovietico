@@ -361,6 +361,7 @@ type ProductFormState = {
   name: string;
   sku: string;
   barcode: string;
+  photoUrl: string;
   price: string;
   initialStock: string;
   minStock: string;
@@ -370,6 +371,7 @@ const emptyProductForm: ProductFormState = {
   name: "",
   sku: "",
   barcode: "",
+  photoUrl: "",
   price: "",
   initialStock: "0",
   minStock: "0",
@@ -388,6 +390,7 @@ function StockScreen({
     sku: string;
     barcode: string;
     name: string;
+    photoUrl: string;
     salePriceCents: number;
     initialStockMilli: number;
     minStockMilli: number;
@@ -397,6 +400,7 @@ function StockScreen({
     sku: string;
     barcode: string;
     name: string;
+    photoUrl: string;
     salePriceCents: number;
     minStockMilli: number;
   }) => Promise<void>;
@@ -448,6 +452,7 @@ function StockScreen({
       name: product.name,
       sku: product.sku,
       barcode: product.barcode ?? "",
+      photoUrl: product.photoUrl ?? "",
       price: (product.salePriceCents / 100).toFixed(2).replace(".", ","),
       initialStock: "0",
       minStock: formatQuantity(product.minStockMilli),
@@ -478,6 +483,7 @@ function StockScreen({
         name: form.name,
         sku: form.sku,
         barcode: form.barcode,
+        photoUrl: form.photoUrl,
         salePriceCents: Math.round(price * 100),
         minStockMilli: Math.round(minStock * 1000),
       };
@@ -606,6 +612,13 @@ function StockScreen({
               onChange={(event) => setField("barcode", event.target.value)}
             />
           </div>
+          <TextInput
+            label="URL pública da foto"
+            type="url"
+            placeholder="HTTPS://..."
+            value={form.photoUrl}
+            onChange={(event) => setField("photoUrl", event.target.value)}
+          />
           <div className="grid grid-cols-2 gap-4">
             <TextInput
               label="Preço de venda"
@@ -761,6 +774,14 @@ function MenuScreen({ notify }: { notify: (message: string) => void }) {
         title="Menu geral"
         description="Os próximos módulos serão ativados incrementalmente."
       />
+      <a
+        href="/catalogo"
+        target="_blank"
+        rel="noreferrer"
+        className="block rounded-none border-4 border-[#1A1A1A] bg-[#A91D11] px-4 py-4 text-center text-sm font-black uppercase tracking-[0.12em] text-white shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] active:translate-x-1 active:translate-y-1 active:shadow-none"
+      >
+        Abrir catálogo do povo ↗
+      </a>
       <div className="grid grid-cols-2 gap-4">
         {menuEntries.map(([code, label, status]) => (
           <button

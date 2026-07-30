@@ -39,6 +39,7 @@ export async function POST(request: Request) {
     const name = String(body.name ?? "").trim();
     const sku = String(body.sku ?? "").trim().toUpperCase();
     const barcode = String(body.barcode ?? "").trim() || null;
+    const photoUrl = String(body.photoUrl ?? "").trim() || null;
     const salePriceCents = numberOrNull(body.salePriceCents);
     const initialStockMilli = numberOrNull(body.initialStockMilli) ?? 0;
     const minStockMilli = numberOrNull(body.minStockMilli) ?? 0;
@@ -60,13 +61,14 @@ export async function POST(request: Request) {
     const statements = [
       env.DB.prepare(
         `INSERT INTO products
-          (id, name, sku, barcode, sale_price_cents, stock_milli, min_stock_milli)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          (id, name, sku, barcode, photo_url, sale_price_cents, stock_milli, min_stock_milli)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         id,
         name,
         sku,
         barcode,
+        photoUrl,
         Math.round(salePriceCents),
         Math.round(initialStockMilli),
         Math.round(minStockMilli),
@@ -100,6 +102,7 @@ export async function PATCH(request: Request) {
     const name = String(body.name ?? "").trim();
     const sku = String(body.sku ?? "").trim().toUpperCase();
     const barcode = String(body.barcode ?? "").trim() || null;
+    const photoUrl = String(body.photoUrl ?? "").trim() || null;
     const salePriceCents = numberOrNull(body.salePriceCents);
     const minStockMilli = numberOrNull(body.minStockMilli);
 
@@ -122,6 +125,7 @@ export async function PATCH(request: Request) {
         name,
         sku,
         barcode,
+        photoUrl,
         salePriceCents: Math.round(salePriceCents),
         minStockMilli: Math.round(minStockMilli),
         updatedAt: new Date().toISOString(),

@@ -23,12 +23,12 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase: origin,
     title: "Estoque Soviético",
-    description: "Estoque, vendas e financeiro no seu celular.",
+    description: "Controle operacional de estoque, vendas e crédito.",
     manifest: "/manifest.webmanifest",
     icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
     openGraph: {
       title: "Estoque Soviético",
-      description: "Estoque, vendas e financeiro no seu celular.",
+      description: "Controle operacional de estoque, vendas e crédito.",
       images: [{ url: new URL("/og.png", origin).toString(), width: 1536, height: 1024 }],
       locale: "pt_BR",
       type: "website",
@@ -36,7 +36,7 @@ export async function generateMetadata(): Promise<Metadata> {
     twitter: {
       card: "summary_large_image",
       title: "Estoque Soviético",
-      description: "Estoque, vendas e financeiro no seu celular.",
+      description: "Controle operacional de estoque, vendas e crédito.",
       images: [new URL("/og.png", origin).toString()],
     },
   };

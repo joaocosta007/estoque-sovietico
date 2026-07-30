@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
-import { InventoryApp } from "./inventory-app";
+import { Dashboard } from "./dashboard";
 
 export const metadata: Metadata = {
   title: "Estoque Soviético",
-  description: "Gestão simples de estoque, vendas e caixa para pequenos negócios.",
+  description: "Controle operacional de estoque, vendas e crédito.",
 };
 
 export default function Home() {
-  return <InventoryApp />;
+  return <Dashboard />;
 }
-

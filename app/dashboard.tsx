@@ -833,7 +833,7 @@ function MenuScreen({
         rel="noreferrer"
         className="block rounded-none border-4 border-[#1A1A1A] bg-[#A91D11] px-4 py-4 text-center text-sm font-black uppercase tracking-[0.12em] text-white shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] active:translate-x-1 active:translate-y-1 active:shadow-none"
       >
-        Abrir catálogo do povo ↗
+        Abrir catálogo dos camaradas ↗
       </a>
       <form action="/api/auth/logout" method="post">
         <button

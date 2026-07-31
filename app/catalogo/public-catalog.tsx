@@ -179,7 +179,7 @@ export function PublicCatalog() {
 
         <header className="border-b-4 border-[#1A1A1A] bg-white px-5 py-7">
           <div className="mb-5 flex items-center justify-between font-mono text-[10px] font-black uppercase tracking-[0.14em]">
-            <span>Vitrine pública // 01</span>
+            <span>Catálogo dos camaradas // 01</span>
             <span className="border-2 border-[#1A1A1A] bg-gray-100 px-2 py-1">
               {loading ? "Consultando" : `${availableCount} disponíveis`}
             </span>

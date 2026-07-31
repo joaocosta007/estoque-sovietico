@@ -43,6 +43,7 @@ next-env.d.ts
 /work/
 /.venv/
 /.venv312/
+/backend/.venv/
 __pycache__/
 *.py[cod]
 *.db

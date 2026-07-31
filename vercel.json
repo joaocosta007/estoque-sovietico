@@ -3,7 +3,8 @@
   "services": {
     "frontend": {
       "root": ".",
-      "framework": "nextjs"
+      "framework": "nextjs",
+      "buildCommand": "npm run db:migrate && npm run build"
     }
   },
   "rewrites": [

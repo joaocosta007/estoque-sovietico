@@ -1,7 +1,7 @@
-import { env } from "cloudflare:workers";
 import { asc, eq } from "drizzle-orm";
-import { getDb } from "../../../db";
+import { getDb, getSql } from "../../../db";
 import { products } from "../../../db/schema";
+import { requireAdminApi } from "../../../lib/auth";
 
 function numberOrNull(value: unknown) {
   const parsed = Number(value);
@@ -10,7 +10,7 @@ function numberOrNull(value: unknown) {
 
 function errorResponse(error: unknown) {
   const message = error instanceof Error ? error.message : "Falha inesperada";
-  if (message.includes("UNIQUE constraint failed")) {
+  if (message.includes("duplicate key") || message.includes("unique constraint")) {
     return Response.json(
       { error: "SKU ou código de barras já cadastrado." },
       { status: 409 },
@@ -20,9 +20,10 @@ function errorResponse(error: unknown) {
 }
 
 export async function GET() {
+  const unauthorized = await requireAdminApi();
+  if (unauthorized) return unauthorized;
   try {
-    const db = getDb();
-    const rows = await db
+    const rows = await getDb()
       .select()
       .from(products)
       .where(eq(products.active, true))
@@ -34,6 +35,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const unauthorized = await requireAdminApi();
+  if (unauthorized) return unauthorized;
   try {
     const body = (await request.json()) as Record<string, unknown>;
     const name = String(body.name ?? "").trim();
@@ -58,37 +61,34 @@ export async function POST(request: Request) {
     }
 
     const id = crypto.randomUUID();
-    const statements = [
-      env.DB.prepare(
-        `INSERT INTO products
-          (id, name, sku, barcode, photo_url, sale_price_cents, stock_milli, min_stock_milli)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(
-        id,
-        name,
-        sku,
-        barcode,
-        photoUrl,
-        Math.round(salePriceCents),
-        Math.round(initialStockMilli),
-        Math.round(minStockMilli),
-      ),
-    ];
-    if (initialStockMilli > 0) {
-      statements.push(
-        env.DB.prepare(
-          `INSERT INTO stock_movements
+    const sql = getSql();
+    await sql.begin(async (tx) => {
+      await tx`
+        INSERT INTO products
+          (id, name, sku, barcode, photo_url, sale_price_cents,
+           stock_milli, min_stock_milli)
+        VALUES (
+          ${id}, ${name}, ${sku}, ${barcode}, ${photoUrl},
+          ${Math.round(salePriceCents)}, ${Math.round(initialStockMilli)},
+          ${Math.round(minStockMilli)}
+        )
+      `;
+      if (initialStockMilli > 0) {
+        await tx`
+          INSERT INTO stock_movements
             (id, product_id, type, quantity_milli, note)
-           VALUES (?, ?, 'opening', ?, 'Saldo inicial')`,
-        ).bind(crypto.randomUUID(), id, Math.round(initialStockMilli)),
-      );
-    }
-    await env.DB.batch(statements);
-
-    const db = getDb();
-    const product = await db.query.products.findFirst({
-      where: eq(products.id, id),
+          VALUES (
+            ${crypto.randomUUID()}, ${id}, 'opening',
+            ${Math.round(initialStockMilli)}, 'Saldo inicial'
+          )
+        `;
+      }
     });
+
+    const [product] = await getDb()
+      .select()
+      .from(products)
+      .where(eq(products.id, id));
     return Response.json({ product }, { status: 201 });
   } catch (error) {
     return errorResponse(error);
@@ -96,6 +96,8 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const unauthorized = await requireAdminApi();
+  if (unauthorized) return unauthorized;
   try {
     const body = (await request.json()) as Record<string, unknown>;
     const id = String(body.id ?? "");
@@ -118,8 +120,7 @@ export async function PATCH(request: Request) {
       return Response.json({ error: "Dados de produto inválidos." }, { status: 400 });
     }
 
-    const db = getDb();
-    const [product] = await db
+    const [product] = await getDb()
       .update(products)
       .set({
         name,
@@ -143,13 +144,14 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const unauthorized = await requireAdminApi();
+  if (unauthorized) return unauthorized;
   try {
     const body = (await request.json()) as { id?: string };
     if (!body.id) {
       return Response.json({ error: "ID obrigatório." }, { status: 400 });
     }
-    const db = getDb();
-    const [product] = await db
+    const [product] = await getDb()
       .update(products)
       .set({ active: false, updatedAt: new Date().toISOString() })
       .where(eq(products.id, body.id))

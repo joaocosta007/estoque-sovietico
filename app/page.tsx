@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { requireAdminPage } from "../lib/auth";
 import { Dashboard } from "./dashboard";
 
 export const metadata: Metadata = {
@@ -6,6 +7,9 @@ export const metadata: Metadata = {
   description: "Controle operacional de estoque, vendas e crédito.",
 };
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  await requireAdminPage();
   return <Dashboard />;
 }

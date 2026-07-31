@@ -1,14 +1,20 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   index,
   integer,
-  sqliteTable,
+  pgTable,
   text,
   uniqueIndex,
-} from "drizzle-orm/sqlite-core";
+} from "drizzle-orm/pg-core";
 
-export const products = sqliteTable(
+const createdAt = () =>
+  text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`);
+const updatedAt = () =>
+  text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`);
+
+export const products = pgTable(
   "products",
   {
     id: text("id").primaryKey(),
@@ -19,18 +25,19 @@ export const products = sqliteTable(
     salePriceCents: integer("sale_price_cents").notNull(),
     stockMilli: integer("stock_milli").notNull().default(0),
     minStockMilli: integer("min_stock_milli").notNull().default(0),
-    active: integer("active", { mode: "boolean" }).notNull().default(true),
-    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-    updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    active: boolean("active").notNull().default(true),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
   },
   (table) => [
     uniqueIndex("products_sku_unique").on(table.sku),
     uniqueIndex("products_barcode_unique").on(table.barcode),
     index("products_active_name_idx").on(table.active, table.name),
+    check("products_stock_nonnegative", sql`${table.stockMilli} >= 0`),
   ],
 );
 
-export const customers = sqliteTable(
+export const customers = pgTable(
   "customers",
   {
     id: text("id").primaryKey(),
@@ -39,14 +46,17 @@ export const customers = sqliteTable(
     document: text("document").notNull().default(""),
     creditLimitCents: integer("credit_limit_cents").notNull().default(0),
     notes: text("notes").notNull().default(""),
-    active: integer("active", { mode: "boolean" }).notNull().default(true),
-    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-    updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    active: boolean("active").notNull().default(true),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
   },
-  (table) => [index("customers_active_name_idx").on(table.active, table.name)],
+  (table) => [
+    index("customers_active_name_idx").on(table.active, table.name),
+    check("customers_credit_limit_nonnegative", sql`${table.creditLimitCents} >= 0`),
+  ],
 );
 
-export const sales = sqliteTable(
+export const sales = pgTable(
   "sales",
   {
     id: text("id").primaryKey(),
@@ -56,12 +66,12 @@ export const sales = sqliteTable(
     totalCents: integer("total_cents").notNull(),
     paymentMethod: text("payment_method").notNull(),
     status: text("status").notNull().default("completed"),
-    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    createdAt: createdAt(),
   },
   (table) => [index("sales_created_at_idx").on(table.createdAt)],
 );
 
-export const customerLedger = sqliteTable(
+export const customerLedger = pgTable(
   "customer_ledger",
   {
     id: text("id").primaryKey(),
@@ -73,17 +83,25 @@ export const customerLedger = sqliteTable(
     description: text("description").notNull(),
     saleId: text("sale_id").references(() => sales.id),
     dueDate: text("due_date"),
-    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    createdAt: createdAt(),
   },
   (table) => [
     index("customer_ledger_customer_created_idx").on(
       table.customerId,
       table.createdAt,
     ),
+    check(
+      "customer_ledger_amount_positive",
+      sql`${table.amountCents} > 0`,
+    ),
+    check(
+      "customer_ledger_type_valid",
+      sql`${table.type} IN ('debit', 'payment')`,
+    ),
   ],
 );
 
-export const saleItems = sqliteTable(
+export const saleItems = pgTable(
   "sale_items",
   {
     id: text("id").primaryKey(),
@@ -101,7 +119,7 @@ export const saleItems = sqliteTable(
   (table) => [index("sale_items_sale_idx").on(table.saleId)],
 );
 
-export const stockMovements = sqliteTable(
+export const stockMovements = pgTable(
   "stock_movements",
   {
     id: text("id").primaryKey(),
@@ -112,7 +130,7 @@ export const stockMovements = sqliteTable(
     quantityMilli: integer("quantity_milli").notNull(),
     referenceId: text("reference_id"),
     note: text("note").notNull().default(""),
-    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    createdAt: createdAt(),
   },
   (table) => [
     index("stock_movements_product_created_idx").on(
@@ -122,27 +140,7 @@ export const stockMovements = sqliteTable(
   ],
 );
 
-// Linhas efêmeras usadas dentro do batch de venda para forçar rollback quando
-// o saldo é insuficiente. Cada guarda é removida no fim da mesma transação.
-export const saleGuards = sqliteTable(
-  "sale_guards",
-  {
-    id: text("id").primaryKey(),
-    ok: integer("ok").notNull(),
-  },
-  (table) => [check("sale_guards_ok", sql`${table.ok} = 1`)],
-);
-
-export const creditGuards = sqliteTable(
-  "credit_guards",
-  {
-    id: text("id").primaryKey(),
-    ok: integer("ok").notNull(),
-  },
-  (table) => [check("credit_guards_ok", sql`${table.ok} = 1`)],
-);
-
-export const expenses = sqliteTable(
+export const expenses = pgTable(
   "expenses",
   {
     id: text("id").primaryKey(),
@@ -151,15 +149,16 @@ export const expenses = sqliteTable(
     amountCents: integer("amount_cents").notNull(),
     dueDate: text("due_date"),
     paidAt: text("paid_at"),
-    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    createdAt: createdAt(),
   },
   (table) => [
     index("expenses_due_date_idx").on(table.dueDate),
     index("expenses_paid_at_idx").on(table.paidAt),
+    check("expenses_amount_positive", sql`${table.amountCents} > 0`),
   ],
 );
 
-export const suppliers = sqliteTable(
+export const suppliers = pgTable(
   "suppliers",
   {
     id: text("id").primaryKey(),
@@ -167,29 +166,29 @@ export const suppliers = sqliteTable(
     contact: text("contact").notNull().default(""),
     phone: text("phone").notNull().default(""),
     notes: text("notes").notNull().default(""),
-    active: integer("active", { mode: "boolean" }).notNull().default(true),
-    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-    updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    active: boolean("active").notNull().default(true),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
   },
   (table) => [index("suppliers_active_name_idx").on(table.active, table.name)],
 );
 
-export const staffMembers = sqliteTable(
+export const staffMembers = pgTable(
   "staff_members",
   {
     id: text("id").primaryKey(),
     name: text("name").notNull(),
     role: text("role").notNull(),
     permissions: text("permissions").notNull().default("[]"),
-    active: integer("active", { mode: "boolean" }).notNull().default(true),
-    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-    updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    active: boolean("active").notNull().default(true),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
   },
   (table) => [index("staff_active_name_idx").on(table.active, table.name)],
 );
 
-export const appSettings = sqliteTable("app_settings", {
+export const appSettings = pgTable("app_settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
-  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: updatedAt(),
 });

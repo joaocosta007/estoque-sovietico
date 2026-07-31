@@ -835,6 +835,14 @@ function MenuScreen({
       >
         Abrir catálogo do povo ↗
       </a>
+      <form action="/api/auth/logout" method="post">
+        <button
+          type="submit"
+          className="w-full rounded-none border-4 border-[#1A1A1A] bg-white px-4 py-3 text-center font-mono text-xs font-black uppercase"
+        >
+          Encerrar sessão administrativa
+        </button>
+      </form>
       <div className="grid grid-cols-2 gap-4">
         {menuEntries.map(([code, label, status, section]) => (
           <button

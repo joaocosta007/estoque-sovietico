@@ -1,96 +1,102 @@
 # Estoque Soviético
 
-Base open-source, mobile-first, para estoque, vendas, financeiro e clientes.
-O repositório contém uma PWA em React e uma API FastAPI transacional.
+PWA mobile-first para estoque, vendas, clientes, fiado, caixa e catálogo
+público. A aplicação principal usa Next.js, PostgreSQL e Drizzle ORM e está
+preparada para deploy na Vercel.
 
-## Começo rápido
+## Tecnologias
 
-### 1. Banco PostgreSQL
+- Next.js 16 com App Router
+- React 19 e Tailwind CSS
+- PostgreSQL
+- Drizzle ORM e Drizzle Kit
+- Sessão administrativa assinada em cookie `HttpOnly`
 
-```bash
-docker compose up -d db
-psql postgresql://estoque:estoque@localhost:5432/estoque -f database/schema.sql
-```
+## Configuração local
 
-Para desenvolvimento simples, a API usa `sqlite:///./estoque.db` quando
-`ESTOQUE_DATABASE_URL` não estiver definido. O SQLite é adequado para uma única
-instância/loja; use PostgreSQL quando houver mais de um operador simultâneo.
-
-### 2. API
-
-```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -e '.[dev]'
-uvicorn app.main:app --reload
-```
-
-Documentação interativa: `http://localhost:8000/docs`.
-
-### 3. PWA
+### 1. Instale as dependências
 
 ```bash
 npm install
+```
+
+### 2. Configure o ambiente
+
+Copie `.env.example` para `.env.local` e preencha:
+
+```dotenv
+DATABASE_URL=postgresql://usuario:senha@host:5432/banco
+AUTH_SECRET=uma-chave-aleatoria-com-pelo-menos-32-caracteres
+ADMIN_EMAIL=admin@exemplo.com
+ADMIN_PASSWORD_HASH=scrypt:...
+```
+
+Gere o hash da senha administrativa:
+
+```bash
+npm run auth:hash -- "uma-senha-forte"
+```
+
+Copie o valor exibido para `ADMIN_PASSWORD_HASH`.
+
+### 3. Crie as tabelas
+
+```bash
+npm run db:migrate
+```
+
+A migração PostgreSQL inicial fica em `drizzle-postgres/`.
+
+### 4. Execute
+
+```bash
 npm run dev
 ```
 
-Abra a URL exibida pelo servidor. A câmera precisa de HTTPS ou `localhost`.
+- Painel administrativo: `http://localhost:3000`
+- Login: `http://localhost:3000/login`
+- Catálogo público: `http://localhost:3000/catalogo`
 
-### 4. Testes
+## Deploy na Vercel
 
-```bash
-cd backend
-pytest
-```
+1. Importe o repositório no painel da Vercel.
+2. Selecione o preset Next.js.
+3. Conecte um PostgreSQL pelo Marketplace, como Neon ou Supabase.
+4. Cadastre `DATABASE_URL`, `AUTH_SECRET`, `ADMIN_EMAIL` e
+   `ADMIN_PASSWORD_HASH` em Production, Preview e Development.
+5. Baixe as variáveis e aplique as tabelas:
 
-## Estrutura
+   ```bash
+   npx vercel env pull .env.local --environment=production
+   npm run db:migrate
+   ```
 
-```text
-app/                    PWA React mobile-first
-backend/app/main.py     rotas FastAPI
-backend/app/models.py   modelos usados pelo vertical slice
-backend/app/services/   regras transacionais
-backend/tests/          testes de venda e rollback
-database/schema.sql     esquema PostgreSQL completo
-docs/ARCHITECTURE.md    decisões, módulos e roadmap
-docker-compose.yml      PostgreSQL local
-```
+6. Faça um novo deployment.
 
-O endpoint funcional `POST /api/v1/sales` está em
-`backend/app/main.py`; sua transação de venda, kit, estoque FIFO, caixa e fiado
-está em `backend/app/services/sales.py`.
+Não use `npm run db:generate` no deploy para aplicar tabelas. O comando gera
+arquivos; quem aplica as migrações é `npm run db:migrate`.
 
-## Estado da versão publicada
+## Segurança
 
-A PWA publicada usa uma base SQLite/D1 privada e começa sem dados. Este primeiro
-incremento operacional já permite:
+As páginas administrativas e APIs internas exigem uma sessão válida. Permanecem
+públicos apenas:
 
-- cadastrar, editar e arquivar produtos;
-- definir preço, saldo inicial e estoque mínimo;
-- registrar entradas de mercadoria;
-- registrar vendas e baixar o estoque transacionalmente;
-- consultar faturamento e vendas recentes no painel.
+- `/login`
+- `/catalogo`
+- `/api/catalog`
+- `/api/catalog-settings`
 
-O FastAPI/PostgreSQL continua no repositório como backend-alvo para os módulos
-mais avançados. Clientes, fiado, despesas, RBAC, kits e relatórios ainda serão
-conectados à interface em incrementos posteriores.
+O catálogo não retorna custo, fornecedor, SKU, código de barras ou saldo exato.
 
-## Exemplo de venda
+## Hospedagem anterior
 
-```bash
-curl -X POST http://localhost:8000/api/v1/sales \
-  -H 'Content-Type: application/json' \
-  -H 'X-Organization-Id: UUID_DA_LOJA' \
-  -H 'X-Operator-Id: UUID_DO_OPERADOR' \
-  -H 'X-Permissions: sales.create' \
-  -d '{
-    "customer_id": null,
-    "discount": "0.00",
-    "items": [{"product_id": "UUID_DO_PRODUTO", "quantity": "2"}],
-    "payments": [{"method": "pix", "amount": "59.80"}]
-  }'
-```
+A configuração do antigo deployment Cloudflare/Sites foi preservada apenas
+como referência em `docs/sites-hosting.json`. O site já publicado não é
+removido por esta conversão, mas novos builds deste branch usam Next.js e
+PostgreSQL.
 
-Os headers simulam o contexto de um JWT nesta base inicial. Antes de produção,
-troque-os por autenticação com hash Argon2id, JWT curto e refresh token rotativo.
+## Backend FastAPI
+
+O diretório `backend/` contém a arquitetura FastAPI original e permanece como
+referência separada. O PWA implantável na Vercel usa as rotas do App Router em
+`app/api/`.

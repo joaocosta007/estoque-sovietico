@@ -1,22 +1,27 @@
-import { env } from "cloudflare:workers";
+import { getSql } from "../../../db";
+import { requireAdminApi } from "../../../lib/auth";
 
 export async function GET() {
+  const unauthorized = await requireAdminApi();
+  if (unauthorized) return unauthorized;
   try {
-    const result = await env.DB.prepare(
-      `SELECT id, name, role, permissions, active, created_at AS createdAt
-       FROM staff_members WHERE active = 1 ORDER BY name`,
-    ).all<{
+    const sql = getSql();
+    const rows = await sql<{
       id: string;
       name: string;
       role: string;
       permissions: string;
-      active: number;
+      active: boolean;
       createdAt: string;
-    }>();
+    }[]>`
+      SELECT id, name, role, permissions, active, created_at AS "createdAt"
+      FROM staff_members
+      WHERE active = true
+      ORDER BY name
+    `;
     return Response.json({
-      staff: result.results.map((member) => ({
+      staff: rows.map((member) => ({
         ...member,
-        active: member.active === 1,
         permissions: JSON.parse(member.permissions) as string[],
       })),
     });
@@ -29,6 +34,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const unauthorized = await requireAdminApi();
+  if (unauthorized) return unauthorized;
   try {
     const body = (await request.json()) as Record<string, unknown>;
     const name = String(body.name ?? "").trim();
@@ -40,12 +47,11 @@ export async function POST(request: Request) {
       return Response.json({ error: "Nome e função são obrigatórios." }, { status: 400 });
     }
     const id = crypto.randomUUID();
-    await env.DB.prepare(
-      `INSERT INTO staff_members (id, name, role, permissions)
-       VALUES (?, ?, ?, ?)`,
-    )
-      .bind(id, name, role, JSON.stringify(permissions))
-      .run();
+    const sql = getSql();
+    await sql`
+      INSERT INTO staff_members (id, name, role, permissions)
+      VALUES (${id}, ${name}, ${role}, ${JSON.stringify(permissions)})
+    `;
     return Response.json({ id }, { status: 201 });
   } catch (error) {
     return Response.json(
@@ -56,6 +62,8 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const unauthorized = await requireAdminApi();
+  if (unauthorized) return unauthorized;
   try {
     const body = (await request.json()) as Record<string, unknown>;
     const id = String(body.id ?? "").trim();
@@ -65,13 +73,15 @@ export async function PATCH(request: Request) {
     if (!id) {
       return Response.json({ error: "Funcionário obrigatório." }, { status: 400 });
     }
-    const result = await env.DB.prepare(
-      `UPDATE staff_members
-       SET permissions = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-    )
-      .bind(JSON.stringify(permissions), id)
-      .run();
-    if ((result.meta.changes ?? 0) !== 1) {
+    const sql = getSql();
+    const rows = await sql<{ id: string }[]>`
+      UPDATE staff_members
+      SET permissions = ${JSON.stringify(permissions)},
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${id}
+      RETURNING id
+    `;
+    if (!rows[0]) {
       return Response.json({ error: "Funcionário não encontrado." }, { status: 404 });
     }
     return Response.json({ updated: true });

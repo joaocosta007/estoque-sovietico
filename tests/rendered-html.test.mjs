@@ -14,6 +14,9 @@ const ledgerApiUrl = new URL(
   "../app/api/customer-ledger/route.ts",
   import.meta.url,
 );
+const packageUrl = new URL("../package.json", import.meta.url);
+const databaseUrl = new URL("../db/index.ts", import.meta.url);
+const proxyUrl = new URL("../proxy.ts", import.meta.url);
 
 test("mantém a vitrine mobile dentro do design system brutalista", async () => {
   const component = await readFile(catalogComponentUrl, "utf8");
@@ -45,11 +48,11 @@ test("limita a API pública aos campos seguros do catálogo", async () => {
     readFile(catalogApiUrl, "utf8"),
     readFile(schemaUrl, "utf8"),
   ]);
-  const selectSql = route.match(/`SELECT[\s\S]*?ORDER BY[\s\S]*?`/)?.[0] ?? "";
+  const selectSql = route.match(/SELECT[\s\S]*?ORDER BY[\s\S]*?`/)?.[0] ?? "";
 
   assert.match(selectSql, /\bname\b/);
-  assert.match(selectSql, /sale_price_cents AS priceCents/);
-  assert.match(selectSql, /photo_url AS photoUrl/);
+  assert.match(selectSql, /sale_price_cents AS "priceCents"/);
+  assert.match(selectSql, /photo_url AS "photoUrl"/);
   assert.match(selectSql, /stock_milli > 0/);
   assert.doesNotMatch(selectSql, /sku|barcode|cost|supplier/i);
   assert.match(schema, /photoUrl: text\("photo_url"\)/);
@@ -69,7 +72,8 @@ test("oferece cadastro, extrato, pagamentos e limite para o fiado", async () => 
   assert.match(schema, /export const customers/);
   assert.match(schema, /export const customerLedger/);
   assert.match(ledgerRoute, /credit_limit_cents/);
-  assert.match(ledgerRoute, /credit_guards/);
+  assert.match(ledgerRoute, /await sql\.begin/);
+  assert.match(ledgerRoute, /FOR UPDATE/);
 });
 
 test("registra venda fiada, dívida e baixa de estoque no mesmo batch", async () => {
@@ -78,5 +82,24 @@ test("registra venda fiada, dívida e baixa de estoque no mesmo batch", async ()
   assert.match(salesRoute, /paymentMethod === "credit"/);
   assert.match(salesRoute, /INSERT INTO customer_ledger/);
   assert.match(salesRoute, /UPDATE products/);
-  assert.match(salesRoute, /await env\.DB\.batch\(statements\)/);
+  assert.match(salesRoute, /await sql\.begin/);
+  assert.match(salesRoute, /FOR UPDATE/);
+});
+
+test("está preparado para Next.js e PostgreSQL na Vercel", async () => {
+  const [packageJson, database, schema, proxy] = await Promise.all([
+    readFile(packageUrl, "utf8"),
+    readFile(databaseUrl, "utf8"),
+    readFile(schemaUrl, "utf8"),
+    readFile(proxyUrl, "utf8"),
+  ]);
+
+  assert.match(packageJson, /"build": "next build"/);
+  assert.doesNotMatch(packageJson, /vinext|wrangler|@cloudflare/);
+  assert.match(database, /drizzle-orm\/postgres-js/);
+  assert.match(database, /process\.env\.DATABASE_URL/);
+  assert.match(schema, /drizzle-orm\/pg-core/);
+  assert.doesNotMatch(schema, /sqlite-core/);
+  assert.match(proxy, /SESSION_COOKIE/);
+  assert.match(proxy, /"\/catalogo"/);
 });

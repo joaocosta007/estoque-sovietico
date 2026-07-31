@@ -1,21 +1,21 @@
-import { env } from "cloudflare:workers";
+import { getSql } from "../../../db";
 
 export async function GET() {
   try {
-    const result = await env.DB.prepare(
-      `SELECT key, value FROM app_settings
-       WHERE key IN ('business_name', 'whatsapp_number')`,
-    ).all<{ key: string; value: string }>();
-    const settings = Object.fromEntries(
-      result.results.map((item) => [item.key, item.value]),
-    );
+    const sql = getSql();
+    const rows = await sql<{ key: string; value: string }[]>`
+      SELECT key, value
+      FROM app_settings
+      WHERE key IN ('business_name', 'whatsapp_number')
+    `;
+    const settings = Object.fromEntries(rows.map((item) => [item.key, item.value]));
     return Response.json({
       businessName: settings.business_name || "Estoque Soviético",
       whatsappNumber: settings.whatsapp_number || "",
     });
-  } catch (error) {
+  } catch {
     return Response.json(
-      { error: error instanceof Error ? error.message : "Falha inesperada." },
+      { error: "Configurações públicas temporariamente indisponíveis." },
       { status: 500 },
     );
   }

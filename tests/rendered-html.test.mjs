@@ -30,6 +30,7 @@ test("publica a landing dos camaradas com fotos e acesso ao catálogo", async ()
   assert.match(landing, /\/landing\/camarada-formal\.jpg/);
   assert.match(landing, /\/landing\/camarada-kart\.jpg/);
   assert.match(landing, /\/landing\/camarada-residencial\.jpg/);
+  assert.equal(landing.match(/\bunoptimized\b/g)?.length, 3);
   assert.match(landing, /Entrar no catálogo dos camaradas/i);
   assert.match(landing, /href="\/catalogo"/);
   assert.match(proxy, /"\/camaradas"/);

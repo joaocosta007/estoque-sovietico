@@ -140,6 +140,7 @@ export default function CamaradasLandingPage() {
                 alt="Morador do residencial em uma estrutura industrial"
                 fill
                 priority
+                unoptimized
                 sizes="(max-width: 1024px) 100vw, 50vw"
                 className="object-cover object-[50%_22%] contrast-110 saturate-75"
               />
@@ -188,6 +189,7 @@ export default function CamaradasLandingPage() {
               src="/landing/camarada-formal.jpg"
               alt="Morador atento durante atividade no residencial"
               fill
+              unoptimized
               sizes="(max-width: 1024px) 100vw, 45vw"
               className="object-cover object-center grayscale contrast-125"
             />
@@ -286,6 +288,7 @@ export default function CamaradasLandingPage() {
               src="/landing/camarada-kart.jpg"
               alt="Morador conduzindo kart, representando agilidade"
               fill
+              unoptimized
               sizes="(max-width: 1024px) 100vw, 50vw"
               className="object-cover object-center grayscale contrast-125"
             />

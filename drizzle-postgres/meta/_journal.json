@@ -15,6 +15,13 @@
       "when": 1785615611913,
       "tag": "0001_living_natasha_romanoff",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785617425546,
+      "tag": "0002_thick_robin_chapel",
+      "breakpoints": true
     }
   ]
 }

@@ -11,8 +11,11 @@ function secret() {
   return new TextEncoder().encode(value);
 }
 
-export async function createSessionToken(email: string) {
-  return new SignJWT({ email, role: "admin" })
+export async function createSessionToken(
+  email: string,
+  mustChangePassword = false,
+) {
+  return new SignJWT({ email, role: "admin", mustChangePassword })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_DURATION_SECONDS}s`)
@@ -28,7 +31,11 @@ export async function verifySessionToken(token?: string) {
     if (payload.role !== "admin" || typeof payload.email !== "string") {
       return null;
     }
-    return { email: payload.email, role: "admin" as const };
+    return {
+      email: payload.email,
+      role: "admin" as const,
+      mustChangePassword: payload.mustChangePassword === true,
+    };
   } catch {
     return null;
   }

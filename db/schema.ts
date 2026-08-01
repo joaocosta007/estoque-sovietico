@@ -190,6 +190,24 @@ export const staffMembers = pgTable(
   (table) => [index("staff_active_name_idx").on(table.active, table.name)],
 );
 
+export const adminUsers = pgTable(
+  "admin_users",
+  {
+    id: text("id").primaryKey(),
+    email: text("email").notNull(),
+    passwordHash: text("password_hash").notNull(),
+    role: text("role").notNull().default("admin"),
+    active: boolean("active").notNull().default(true),
+    mustChangePassword: boolean("must_change_password").notNull().default(true),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("admin_users_email_unique").on(table.email),
+    index("admin_users_active_email_idx").on(table.active, table.email),
+  ],
+);
+
 export const appSettings = pgTable("app_settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),

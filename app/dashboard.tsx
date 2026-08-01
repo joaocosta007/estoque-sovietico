@@ -847,6 +847,12 @@ function MenuScreen({
       >
         Abrir catálogo dos camaradas ↗
       </a>
+      <a
+        href="/trocar-senha"
+        className="block rounded-none border-4 border-[#1A1A1A] bg-white px-4 py-3 text-center font-mono text-xs font-black uppercase shadow-[4px_4px_0px_0px_rgba(26,26,26,1)]"
+      >
+        Alterar minha senha →
+      </a>
       <form action="/api/auth/logout" method="post">
         <button
           type="submit"

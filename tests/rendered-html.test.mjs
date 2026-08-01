@@ -19,6 +19,18 @@ const databaseUrl = new URL("../db/index.ts", import.meta.url);
 const proxyUrl = new URL("../proxy.ts", import.meta.url);
 const landingUrl = new URL("../app/camaradas/page.tsx", import.meta.url);
 const dashboardUrl = new URL("../app/dashboard.tsx", import.meta.url);
+const loginRouteUrl = new URL(
+  "../app/api/auth/login/route.ts",
+  import.meta.url,
+);
+const passwordRouteUrl = new URL(
+  "../app/api/auth/password/route.ts",
+  import.meta.url,
+);
+const changePasswordPageUrl = new URL(
+  "../app/trocar-senha/page.tsx",
+  import.meta.url,
+);
 
 test("publica a landing dos camaradas com fotos e acesso ao catálogo", async () => {
   const [landing, proxy] = await Promise.all([
@@ -123,6 +135,31 @@ test("cancela venda com estorno transacional e opção no menu", async () => {
   assert.match(salesRoute, /'payment'/);
   assert.match(salesRoute, /status = 'cancelled'/);
   assert.match(schema, /cancelledAt: text\("cancelled_at"\)/);
+});
+
+test("oferece múltiplas contas e troca obrigatória da senha temporária", async () => {
+  const [loginRoute, passwordRoute, page, dashboard, proxy, schema] =
+    await Promise.all([
+      readFile(loginRouteUrl, "utf8"),
+      readFile(passwordRouteUrl, "utf8"),
+      readFile(changePasswordPageUrl, "utf8"),
+      readFile(dashboardUrl, "utf8"),
+      readFile(proxyUrl, "utf8"),
+      readFile(schemaUrl, "utf8"),
+    ]);
+
+  assert.match(schema, /export const adminUsers/);
+  assert.match(schema, /mustChangePassword/);
+  assert.match(loginRoute, /FROM admin_users/);
+  assert.match(loginRoute, /must_change_password/);
+  assert.match(loginRoute, /"\/trocar-senha"/);
+  assert.match(passwordRoute, /hashPassword/);
+  assert.match(passwordRoute, /must_change_password = false/);
+  assert.match(passwordRoute, /createSessionToken\(session\.email, false\)/);
+  assert.match(page, /Escolha sua/);
+  assert.match(page, /Salvar minha senha/);
+  assert.match(dashboard, /Alterar minha senha/);
+  assert.match(proxy, /session\.mustChangePassword/);
 });
 
 test("está preparado para Next.js e PostgreSQL na Vercel", async () => {

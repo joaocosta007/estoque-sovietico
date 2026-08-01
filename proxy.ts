@@ -26,7 +26,16 @@ export async function proxy(request: NextRequest) {
   const session = await verifySessionToken(
     request.cookies.get(SESSION_COOKIE)?.value,
   );
-  if (session) return NextResponse.next();
+  if (session) {
+    const passwordChangeAllowed =
+      pathname === "/trocar-senha" ||
+      pathname === "/api/auth/password" ||
+      pathname === "/api/auth/logout";
+    if (session.mustChangePassword && !passwordChangeAllowed) {
+      return NextResponse.redirect(new URL("/trocar-senha", request.url));
+    }
+    return NextResponse.next();
+  }
 
   if (pathname.startsWith("/api/")) {
     return NextResponse.json(

@@ -17,6 +17,23 @@ const ledgerApiUrl = new URL(
 const packageUrl = new URL("../package.json", import.meta.url);
 const databaseUrl = new URL("../db/index.ts", import.meta.url);
 const proxyUrl = new URL("../proxy.ts", import.meta.url);
+const landingUrl = new URL("../app/camaradas/page.tsx", import.meta.url);
+
+test("publica a landing dos camaradas com fotos e acesso ao catálogo", async () => {
+  const [landing, proxy] = await Promise.all([
+    readFile(landingUrl, "utf8"),
+    readFile(proxyUrl, "utf8"),
+  ]);
+
+  assert.match(landing, /O residencial/);
+  assert.match(landing, /residencial universitário masculino/i);
+  assert.match(landing, /\/landing\/camarada-formal\.jpg/);
+  assert.match(landing, /\/landing\/camarada-kart\.jpg/);
+  assert.match(landing, /\/landing\/camarada-residencial\.jpg/);
+  assert.match(landing, /Entrar no catálogo dos camaradas/i);
+  assert.match(landing, /href="\/catalogo"/);
+  assert.match(proxy, /"\/camaradas"/);
+});
 
 test("mantém a vitrine mobile dentro do design system brutalista", async () => {
   const component = await readFile(catalogComponentUrl, "utf8");

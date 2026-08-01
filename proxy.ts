@@ -3,6 +3,7 @@ import { SESSION_COOKIE, verifySessionToken } from "./lib/session";
 
 const publicPaths = new Set([
   "/login",
+  "/camaradas",
   "/catalogo",
   "/api/catalog",
   "/api/catalog-settings",

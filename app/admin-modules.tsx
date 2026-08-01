@@ -14,6 +14,7 @@ import type {
 import type { Product, Sale } from "./use-store";
 
 export type AdminSection =
+  | "sales"
   | "customers"
   | "cash"
   | "suppliers"
@@ -47,6 +48,7 @@ type Props = {
     permissions: string[],
   ) => Promise<void>;
   saveSettings: (body: AppSettings) => Promise<void>;
+  cancelSale: (id: string, reason: string) => Promise<void>;
 };
 
 const moneyFormatter = new Intl.NumberFormat("pt-BR", {
@@ -101,6 +103,152 @@ function ErrorBox({ message }: { message: string }) {
     <p className="border-4 border-[#1A1A1A] bg-[#A91D11] p-3 font-mono text-xs font-black uppercase text-white">
       ERRO // {message}
     </p>
+  );
+}
+
+const paymentLabels: Record<string, string> = {
+  pix: "PIX",
+  cash: "DINHEIRO",
+  card: "CARTÃO",
+  credit: "FIADO",
+};
+
+function SalesCancellationModule(props: Props) {
+  const [selectedId, setSelectedId] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const selected = props.sales.find((sale) => sale.id === selectedId);
+  const customer = props.customers.find(
+    (entry) => entry.id === selected?.customerId,
+  );
+
+  async function cancelSelected() {
+    if (!selected || reason.trim().length < 3) {
+      setError("Selecione uma venda e informe o motivo do cancelamento.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await props.cancelSale(selected.id, reason);
+      props.notify(`VENDA ${selected.id.slice(0, 8)} CANCELADA`);
+      setSelectedId("");
+      setReason("");
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Falha ao cancelar a venda.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="space-y-5 px-4 py-5">
+      <ModuleHeader
+        code="SETOR // 07"
+        title="Cancelar venda"
+        description="Estorne uma operação incorreta e devolva os itens ao estoque."
+        onBack={props.onBack}
+      />
+
+      <div className="border-4 border-[#1A1A1A] bg-yellow-300 p-4 font-mono text-[10px] font-black uppercase leading-5">
+        O cancelamento restaura o estoque e retira a venda do faturamento. Vendas
+        fiadas também recebem um lançamento de estorno no extrato do cliente.
+      </div>
+
+      <DataCard title="Histórico de vendas" index={`${props.sales.length}`}>
+        {props.sales.length === 0 ? (
+          <p className="font-mono text-xs uppercase">Nenhuma venda registrada.</p>
+        ) : (
+          <div className="max-h-[430px] overflow-y-auto border-y-2 border-[#1A1A1A]">
+            {props.sales.map((sale) => {
+              const isCancelled = sale.status === "cancelled";
+              const isSelected = sale.id === selectedId;
+              return (
+                <button
+                  type="button"
+                  key={sale.id}
+                  disabled={isCancelled}
+                  onClick={() => {
+                    setSelectedId(sale.id);
+                    setError("");
+                  }}
+                  className={[
+                    "grid w-full grid-cols-[1fr_auto] gap-3 rounded-none border-b-2 border-[#1A1A1A] p-3 text-left last:border-b-0",
+                    isCancelled
+                      ? "cursor-not-allowed bg-gray-300 text-gray-600 line-through"
+                      : isSelected
+                        ? "bg-[#A91D11] text-white"
+                        : "bg-white",
+                  ].join(" ")}
+                >
+                  <span>
+                    <strong className="block text-xs font-black uppercase">
+                      #{sale.id.slice(0, 8)}
+                      {" // "}
+                      {paymentLabels[sale.paymentMethod] ?? sale.paymentMethod}
+                    </strong>
+                    <small className="font-mono text-[9px] uppercase">
+                      {new Date(
+                        sale.createdAt.replace(" ", "T") + "Z",
+                      ).toLocaleString("pt-BR")}
+                      {isCancelled ? " // CANCELADA" : ""}
+                    </small>
+                  </span>
+                  <strong className="self-center font-mono text-xs">
+                    {money(sale.totalCents)}
+                  </strong>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </DataCard>
+
+      {selected && (
+        <DataCard title="Confirmar estorno" index="ATENÇÃO">
+          <dl className="mb-4 grid grid-cols-[1fr_auto] gap-2 border-b-2 border-[#1A1A1A] pb-4 font-mono text-[10px] uppercase">
+            <dt>Venda</dt>
+            <dd className="font-black">#{selected.id.slice(0, 8)}</dd>
+            <dt>Pagamento</dt>
+            <dd className="font-black">
+              {paymentLabels[selected.paymentMethod] ?? selected.paymentMethod}
+            </dd>
+            {customer && (
+              <>
+                <dt>Cliente</dt>
+                <dd className="font-black">{customer.name}</dd>
+              </>
+            )}
+            <dt>Total</dt>
+            <dd className="font-black text-[#A91D11]">
+              {money(selected.totalCents)}
+            </dd>
+          </dl>
+          <TextInput
+            label="Motivo do cancelamento"
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder="EX.: PRODUTO OU FORMA DE PAGAMENTO INCORRETA"
+            maxLength={160}
+          />
+          <PrimaryButton
+            className="mt-5 w-full"
+            type="button"
+            disabled={busy || reason.trim().length < 3}
+            onClick={() => void cancelSelected()}
+          >
+            {busy ? "Cancelando..." : "Confirmar cancelamento"}
+          </PrimaryButton>
+        </DataCard>
+      )}
+
+      {error && <ErrorBox message={error} />}
+    </section>
   );
 }
 
@@ -433,14 +581,26 @@ function CustomersModule(props: Props) {
 function CashModule(props: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const cancelledSaleIds = new Set(
+    props.sales
+      .filter((sale) => sale.status === "cancelled")
+      .map((sale) => sale.id),
+  );
   const receivedCredit = props.ledger
-    .filter((entry) => entry.type === "payment")
+    .filter(
+      (entry) =>
+        entry.type === "payment" &&
+        (!entry.saleId || !cancelledSaleIds.has(entry.saleId)),
+    )
     .reduce((total, entry) => total + entry.amountCents, 0);
   const paidExpenses = props.expenses
     .filter((expense) => expense.paidAt)
     .reduce((total, expense) => total + expense.amountCents, 0);
   const cashSales = props.sales
-    .filter((sale) => sale.paymentMethod !== "credit")
+    .filter(
+      (sale) =>
+        sale.status === "completed" && sale.paymentMethod !== "credit",
+    )
     .reduce((total, sale) => total + sale.totalCents, 0);
   const balance = cashSales + receivedCredit - paidExpenses;
 
@@ -628,7 +788,9 @@ function SuppliersModule(props: Props) {
 }
 
 function ReportsModule(props: Props) {
-  const totalSales = props.sales.reduce((sum, sale) => sum + sale.totalCents, 0);
+  const totalSales = props.sales
+    .filter((sale) => sale.status === "completed")
+    .reduce((sum, sale) => sum + sale.totalCents, 0);
   const totalDebt = props.customers.reduce(
     (sum, customer) => sum + customer.balanceCents,
     0,
@@ -892,6 +1054,7 @@ function SettingsModule(props: Props) {
 }
 
 export function AdminModule(props: Props) {
+  if (props.section === "sales") return <SalesCancellationModule {...props} />;
   if (props.section === "customers") return <CustomersModule {...props} />;
   if (props.section === "cash") return <CashModule {...props} />;
   if (props.section === "suppliers") return <SuppliersModule {...props} />;

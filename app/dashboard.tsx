@@ -114,6 +114,7 @@ function PanelScreen({
     0,
   );
   const debtors = customers.filter((customer) => customer.balanceCents > 0).length;
+  const completedSales = sales.filter((sale) => sale.status === "completed");
 
   return (
     <section className="space-y-5 px-4 py-5" aria-label="Painel operacional">
@@ -156,7 +157,7 @@ function PanelScreen({
             {formatMoney(todayTotalCents)}
           </strong>
           <p className="mt-3 border-t-2 border-[#1A1A1A] pt-2 font-mono text-[10px] font-bold">
-            {sales.length} VENDA(S)
+            {completedSales.length} VENDA(S)
           </p>
         </DataCard>
 
@@ -196,7 +197,12 @@ function PanelScreen({
           <div className="divide-y-2 divide-[#1A1A1A] border-y-2 border-[#1A1A1A] font-mono text-xs">
             {sales.slice(0, 5).map((sale) => (
               <div
-                className="grid grid-cols-[1fr_auto] gap-2 py-3"
+                className={[
+                  "grid grid-cols-[1fr_auto] gap-2 py-3",
+                  sale.status === "cancelled"
+                    ? "text-gray-500 line-through"
+                    : "",
+                ].join(" ")}
                 key={sale.id}
               >
                 <span>
@@ -207,7 +213,12 @@ function PanelScreen({
                     { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" },
                   )}
                 </span>
-                <strong>+{formatMoney(sale.totalCents)}</strong>
+                <strong>
+                  {sale.status === "cancelled" ? "CANCELADA" : "+"}
+                  {sale.status === "cancelled"
+                    ? ""
+                    : formatMoney(sale.totalCents)}
+                </strong>
               </div>
             ))}
           </div>
@@ -813,6 +824,7 @@ const menuEntries: [string, string, string, AdminSection][] = [
   ["04", "Relatórios", "Indicadores e CSV", "reports"],
   ["05", "Equipe e acessos", "Permissões RBAC", "staff"],
   ["06", "Configurações", "Dados do comércio", "settings"],
+  ["07", "Cancelar venda", "Estorno de operação", "sales"],
 ];
 
 function MenuScreen({
@@ -1004,6 +1016,10 @@ export function Dashboard() {
             createStaff={admin.createStaff}
             updateStaffPermissions={admin.updateStaffPermissions}
             saveSettings={admin.saveSettings}
+            cancelSale={async (id, reason) => {
+              await store.cancelSale(id, reason);
+              await admin.refresh();
+            }}
           />
         )}
 

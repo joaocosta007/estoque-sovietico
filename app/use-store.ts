@@ -24,6 +24,9 @@ export type Sale = {
   totalCents: number;
   paymentMethod: string;
   status: string;
+  cancelledAt: string | null;
+  cancelReason: string;
+  cancelledBy: string;
   createdAt: string;
 };
 
@@ -139,6 +142,14 @@ export function useStore() {
     return result.sale;
   }
 
+  async function cancelSale(id: string, reason: string) {
+    await api("/api/sales", {
+      method: "PATCH",
+      body: JSON.stringify({ id, reason }),
+    });
+    await refresh();
+  }
+
   return {
     products,
     sales,
@@ -151,5 +162,6 @@ export function useStore() {
     deleteProduct,
     addStock,
     createSale,
+    cancelSale,
   };
 }

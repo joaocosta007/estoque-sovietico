@@ -18,6 +18,7 @@ const packageUrl = new URL("../package.json", import.meta.url);
 const databaseUrl = new URL("../db/index.ts", import.meta.url);
 const proxyUrl = new URL("../proxy.ts", import.meta.url);
 const landingUrl = new URL("../app/camaradas/page.tsx", import.meta.url);
+const dashboardUrl = new URL("../app/dashboard.tsx", import.meta.url);
 
 test("publica a landing dos camaradas com fotos e acesso ao catálogo", async () => {
   const [landing, proxy] = await Promise.all([
@@ -102,6 +103,26 @@ test("registra venda fiada, dívida e baixa de estoque no mesmo batch", async ()
   assert.match(salesRoute, /UPDATE products/);
   assert.match(salesRoute, /await sql\.begin/);
   assert.match(salesRoute, /FOR UPDATE/);
+});
+
+test("cancela venda com estorno transacional e opção no menu", async () => {
+  const [salesRoute, dashboard, adminModules, schema] = await Promise.all([
+    readFile(salesApiUrl, "utf8"),
+    readFile(dashboardUrl, "utf8"),
+    readFile(adminModulesUrl, "utf8"),
+    readFile(schemaUrl, "utf8"),
+  ]);
+
+  assert.match(dashboard, /Cancelar venda/);
+  assert.match(adminModules, /Confirmar cancelamento/);
+  assert.match(salesRoute, /export async function PATCH/);
+  assert.match(salesRoute, /await sql\.begin/);
+  assert.match(salesRoute, /FOR UPDATE/);
+  assert.match(salesRoute, /stock_milli = stock_milli \+/);
+  assert.match(salesRoute, /'sale_cancel'/);
+  assert.match(salesRoute, /'payment'/);
+  assert.match(salesRoute, /status = 'cancelled'/);
+  assert.match(schema, /cancelledAt: text\("cancelled_at"\)/);
 });
 
 test("está preparado para Next.js e PostgreSQL na Vercel", async () => {

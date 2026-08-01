@@ -1,7 +1,7 @@
 import { desc } from "drizzle-orm";
 import { getDb, getSql } from "../../../db";
 import { sales } from "../../../db/schema";
-import { requireAdminApi } from "../../../lib/auth";
+import { getAdminSession, requireAdminApi } from "../../../lib/auth";
 
 type SaleItemInput = {
   productId?: string;
@@ -26,11 +26,145 @@ export async function GET() {
       .limit(500);
     const today = new Date().toISOString().slice(0, 10);
     const todayTotalCents = rows
-      .filter((sale) => sale.createdAt.startsWith(today))
+      .filter(
+        (sale) =>
+          sale.status === "completed" && sale.createdAt.startsWith(today),
+      )
       .reduce((total, sale) => total + sale.totalCents, 0);
     return Response.json({ sales: rows, todayTotalCents });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Falha inesperada";
+    return Response.json({ error: message }, { status: 500 });
+  }
+}
+
+type SaleCancellationRow = {
+  id: string;
+  customerId: string | null;
+  totalCents: number;
+  paymentMethod: string;
+  status: string;
+};
+
+type CancellationItemRow = {
+  productId: string;
+  productName: string;
+  quantityMilli: number;
+};
+
+export async function PATCH(request: Request) {
+  const unauthorized = await requireAdminApi();
+  if (unauthorized) return unauthorized;
+
+  try {
+    const body = (await request.json()) as {
+      id?: string;
+      reason?: string;
+    };
+    const saleId = body.id?.trim() ?? "";
+    const reason = body.reason?.trim() ?? "";
+    if (!saleId || reason.length < 3) {
+      return Response.json(
+        { error: "Informe a venda e um motivo com pelo menos 3 caracteres." },
+        { status: 400 },
+      );
+    }
+
+    const session = await getAdminSession();
+    const cancelledBy = session?.email ?? "administrador";
+    const sql = getSql();
+
+    await sql.begin(async (tx) => {
+      const saleRows = await tx<SaleCancellationRow[]>`
+        SELECT
+          id, customer_id AS "customerId", total_cents AS "totalCents",
+          payment_method AS "paymentMethod", status
+        FROM sales
+        WHERE id = ${saleId}
+        FOR UPDATE
+      `;
+      const sale = saleRows[0];
+      if (!sale) throw new Error("SALE_NOT_FOUND");
+      if (sale.status === "cancelled") throw new Error("SALE_CANCELLED");
+      if (sale.status !== "completed") throw new Error("SALE_NOT_COMPLETED");
+
+      const items = await tx<CancellationItemRow[]>`
+        SELECT
+          product_id AS "productId", product_name AS "productName",
+          quantity_milli AS "quantityMilli"
+        FROM sale_items
+        WHERE sale_id = ${saleId}
+      `;
+      if (items.length === 0) throw new Error("SALE_WITHOUT_ITEMS");
+
+      if (sale.paymentMethod === "credit" && sale.customerId) {
+        const [balance] = await tx<{ balanceCents: number }[]>`
+          SELECT COALESCE(SUM(
+            CASE WHEN type = 'debit' THEN amount_cents ELSE -amount_cents END
+          ), 0)::int AS "balanceCents"
+          FROM customer_ledger
+          WHERE customer_id = ${sale.customerId}
+        `;
+        if ((balance?.balanceCents ?? 0) < sale.totalCents) {
+          throw new Error("CREDIT_ALREADY_SETTLED");
+        }
+      }
+
+      for (const item of items) {
+        await tx`
+          UPDATE products
+          SET stock_milli = stock_milli + ${item.quantityMilli},
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${item.productId}
+        `;
+        await tx`
+          INSERT INTO stock_movements
+            (id, product_id, type, quantity_milli, reference_id, note)
+          VALUES (
+            ${crypto.randomUUID()}, ${item.productId}, 'sale_cancel',
+            ${item.quantityMilli}, ${saleId},
+            ${`Estorno de venda: ${reason}`}
+          )
+        `;
+      }
+
+      if (sale.paymentMethod === "credit" && sale.customerId) {
+        await tx`
+          INSERT INTO customer_ledger
+            (id, customer_id, type, amount_cents, description, sale_id)
+          VALUES (
+            ${crypto.randomUUID()}, ${sale.customerId}, 'payment',
+            ${sale.totalCents}, ${`Estorno da venda #${saleId.slice(0, 8)}`},
+            ${saleId}
+          )
+        `;
+      }
+
+      await tx`
+        UPDATE sales
+        SET status = 'cancelled',
+            cancelled_at = CURRENT_TIMESTAMP,
+            cancel_reason = ${reason},
+            cancelled_by = ${cancelledBy}
+        WHERE id = ${saleId}
+      `;
+    });
+
+    return Response.json({ cancelled: true, id: saleId });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Falha inesperada";
+    const knownErrors: Record<string, [string, number]> = {
+      SALE_NOT_FOUND: ["Venda não encontrada.", 404],
+      SALE_CANCELLED: ["Esta venda já foi cancelada.", 409],
+      SALE_NOT_COMPLETED: ["Somente vendas concluídas podem ser canceladas.", 409],
+      SALE_WITHOUT_ITEMS: ["A venda não possui itens para estornar.", 409],
+      CREDIT_ALREADY_SETTLED: [
+        "O cliente já possui pagamentos que impedem o estorno automático. Revise o fiado antes de cancelar.",
+        409,
+      ],
+    };
+    const known = knownErrors[message];
+    if (known) return Response.json({ error: known[0] }, { status: known[1] });
     return Response.json({ error: message }, { status: 500 });
   }
 }

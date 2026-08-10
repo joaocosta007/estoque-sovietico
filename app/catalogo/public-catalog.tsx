@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { PushSubscriptionCard } from "./push-subscription-card";
 
 type CatalogProduct = {
   name: string;
@@ -220,6 +221,8 @@ export function PublicCatalog() {
             Mostrar itens esgotados
           </label>
         </section>
+
+        <PushSubscriptionCard />
 
         <section className="space-y-5 px-5 py-6" aria-live="polite">
           <div className="flex items-end justify-between border-b-4 border-[#1A1A1A] pb-3">

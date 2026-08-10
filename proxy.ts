@@ -7,6 +7,8 @@ const publicPaths = new Set([
   "/catalogo",
   "/api/catalog",
   "/api/catalog-settings",
+  "/api/push/config",
+  "/api/push/subscriptions",
   "/api/auth/login",
   "/api/auth/logout",
 ]);

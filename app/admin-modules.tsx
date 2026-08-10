@@ -8,6 +8,9 @@ import type {
   Customer,
   Expense,
   LedgerEntry,
+  NotificationCampaign,
+  NotificationTemplate,
+  PushRecipient,
   StaffMember,
   Supplier,
 } from "./use-admin-store";
@@ -20,6 +23,7 @@ export type AdminSection =
   | "suppliers"
   | "reports"
   | "staff"
+  | "notifications"
   | "settings";
 
 type Props = {
@@ -30,6 +34,9 @@ type Props = {
   suppliers: Supplier[];
   staff: StaffMember[];
   settings: AppSettings;
+  notificationTemplates: NotificationTemplate[];
+  pushRecipients: PushRecipient[];
+  notificationCampaigns: NotificationCampaign[];
   products: Product[];
   sales: Sale[];
   todayTotalCents: number;
@@ -49,6 +56,10 @@ type Props = {
   ) => Promise<void>;
   saveSettings: (body: AppSettings) => Promise<void>;
   cancelSale: (id: string, reason: string) => Promise<void>;
+  createNotification: (body: unknown) => Promise<void>;
+  updateNotification: (id: string, action: "cancel" | "sendNow") => Promise<void>;
+  createNotificationTemplate: (body: unknown) => Promise<void>;
+  deleteNotificationTemplate: (id: string) => Promise<void>;
 };
 
 const moneyFormatter = new Intl.NumberFormat("pt-BR", {
@@ -998,6 +1009,214 @@ function StaffModule(props: Props) {
   );
 }
 
+const notificationStatus: Record<string, string> = {
+  pending: "PENDENTE",
+  scheduled: "AGENDADA",
+  sending: "ENVIANDO",
+  sent: "ENVIADA",
+  partial: "PARCIAL",
+  failed: "FALHOU",
+  cancelled: "CANCELADA",
+};
+
+function NotificationsModule(props: Props) {
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [targetUrl, setTargetUrl] = useState("/catalogo");
+  const [audience, setAudience] = useState("all");
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [templateId, setTemplateId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  function chooseTemplate(id: string) {
+    setTemplateId(id);
+    const template = props.notificationTemplates.find((item) => item.id === id);
+    if (!template) return;
+    setTitle(template.title);
+    setBody(template.body);
+    setTargetUrl(template.targetUrl);
+  }
+
+  async function dispatch(sendNow: boolean) {
+    setBusy(true);
+    setError("");
+    try {
+      await props.createNotification({
+        title,
+        body,
+        targetUrl,
+        audience,
+        scheduledAt,
+        templateId: templateId || null,
+        sendNow,
+      });
+      props.notify(sendNow ? "NOTIFICAÇÃO DISPARADA" : "NOTIFICAÇÃO AGENDADA");
+      setTitle("");
+      setBody("");
+      setScheduledAt("");
+      setTemplateId("");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Falha no disparo.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveTemplate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    setBusy(true);
+    setError("");
+    try {
+      await props.createNotificationTemplate({
+        name: data.get("name"),
+        title: data.get("template_title"),
+        body: data.get("template_body"),
+        targetUrl: data.get("template_url"),
+      });
+      form.reset();
+      props.notify("TEMPLATE SALVO");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Falha ao salvar template.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const scheduledCount = props.notificationCampaigns.filter(
+    (campaign) => campaign.status === "scheduled",
+  ).length;
+  const sentCount = props.notificationCampaigns.filter((campaign) =>
+    ["sent", "partial"].includes(campaign.status),
+  ).length;
+
+  return (
+    <section className="space-y-5 px-4 py-5">
+      <ModuleHeader
+        code="SETOR // 08"
+        title="Central de notificações"
+        description="Dispare comunicados agora, agende campanhas e reutilize templates."
+        onBack={props.onBack}
+      />
+
+      <div className="grid grid-cols-3 gap-3">
+        <DataCard title="Aparelhos" index="PUSH">
+          <strong className="text-2xl font-black">{props.pushRecipients.length}</strong>
+        </DataCard>
+        <DataCard title="Agendadas" index="FILA">
+          <strong className="text-2xl font-black text-[#A91D11]">{scheduledCount}</strong>
+        </DataCard>
+        <DataCard title="Enviadas" index="HIST">
+          <strong className="text-2xl font-black">{sentCount}</strong>
+        </DataCard>
+      </div>
+
+      {props.pushRecipients.length === 0 && (
+        <div className="border-4 border-[#1A1A1A] bg-yellow-300 p-4 font-mono text-[10px] font-black uppercase leading-5">
+          Ainda não há aparelhos inscritos. O morador precisa abrir o Catálogo dos Camaradas e tocar em “Ativar notificações”.
+        </div>
+      )}
+
+      <div className="space-y-4 border-4 border-[#1A1A1A] bg-gray-200 p-4 shadow-[4px_4px_0px_0px_rgba(26,26,26,1)]">
+        <h3 className="border-b-2 border-[#1A1A1A] pb-2 text-sm font-black uppercase">Novo comunicado</h3>
+        <label className="block">
+          <span className="mb-2 block text-xs font-black uppercase">Carregar template</span>
+          <select value={templateId} onChange={(event) => chooseTemplate(event.target.value)} className="w-full rounded-none border-2 border-[#1A1A1A] bg-white p-3 font-mono text-xs font-black uppercase">
+            <option value="">SEM TEMPLATE</option>
+            {props.notificationTemplates.map((template) => (
+              <option key={template.id} value={template.id}>{template.name}</option>
+            ))}
+          </select>
+        </label>
+        <TextInput label="Título da notificação" value={title} maxLength={80} onChange={(event) => setTitle(event.target.value)} placeholder="EX.: REPOSIÇÃO CONCLUÍDA" />
+        <label className="block">
+          <span className="mb-2 block text-xs font-black uppercase tracking-[0.08em]">Mensagem</span>
+          <textarea value={body} maxLength={240} onChange={(event) => setBody(event.target.value)} rows={4} placeholder="ESCREVA O COMUNICADO..." className="w-full resize-none rounded-none border-4 border-[#1A1A1A] bg-white px-3 py-3 font-mono text-xs font-bold uppercase outline-none shadow-[3px_3px_0px_0px_rgba(26,26,26,1)]" />
+          <small className="mt-1 block text-right font-mono text-[9px] font-black">{body.length}/240</small>
+        </label>
+        <TextInput label="Abrir ao tocar" value={targetUrl} onChange={(event) => setTargetUrl(event.target.value)} placeholder="/catalogo" />
+        <label className="block">
+          <span className="mb-2 block text-xs font-black uppercase">Destinatários</span>
+          <select value={audience} onChange={(event) => setAudience(event.target.value)} className="w-full rounded-none border-2 border-[#1A1A1A] bg-white p-3 font-mono text-xs font-black uppercase">
+            <option value="all">TODOS OS APARELHOS ATIVOS</option>
+            {props.pushRecipients.map((recipient) => (
+              <option key={recipient.id} value={`subscription:${recipient.id}`}>{recipient.label}</option>
+            ))}
+          </select>
+        </label>
+        <button type="button" disabled={busy || !title.trim() || !body.trim()} onClick={() => void dispatch(true)} className="w-full rounded-none border-4 border-[#1A1A1A] bg-[#A91D11] px-4 py-4 text-sm font-black uppercase tracking-[0.1em] text-white shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] disabled:opacity-50">
+          Disparar agora
+        </button>
+        <div className="border-t-4 border-[#1A1A1A] pt-4">
+          <TextInput label="Data e hora do agendamento" type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} />
+          <button type="button" disabled={busy || !title.trim() || !body.trim() || !scheduledAt} onClick={() => void dispatch(false)} className="mt-4 w-full rounded-none border-4 border-[#1A1A1A] bg-white px-4 py-3 text-xs font-black uppercase shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] disabled:opacity-50">
+            Agendar comunicado
+          </button>
+        </div>
+      </div>
+
+      <form onSubmit={saveTemplate} className="space-y-4 border-4 border-[#1A1A1A] bg-white p-4">
+        <h3 className="border-b-2 border-[#1A1A1A] pb-2 text-sm font-black uppercase">Criar template</h3>
+        <TextInput label="Nome interno" name="name" required placeholder="EX.: REPOSIÇÃO" />
+        <TextInput label="Título" name="template_title" required maxLength={80} />
+        <label className="block">
+          <span className="mb-2 block text-xs font-black uppercase">Mensagem padrão</span>
+          <textarea name="template_body" required maxLength={240} rows={3} className="w-full resize-none rounded-none border-4 border-[#1A1A1A] bg-gray-100 p-3 font-mono text-xs font-bold uppercase outline-none" />
+        </label>
+        <TextInput label="Destino" name="template_url" defaultValue="/catalogo" />
+        <PrimaryButton type="submit" disabled={busy} className="w-full">Salvar template</PrimaryButton>
+      </form>
+
+      {props.notificationTemplates.length > 0 && (
+        <DataCard title="Templates salvos" index={`${props.notificationTemplates.length}`}>
+          <div className="divide-y-2 divide-[#1A1A1A] border-y-2 border-[#1A1A1A]">
+            {props.notificationTemplates.map((template) => (
+              <div key={template.id} className="grid grid-cols-[1fr_auto] gap-3 py-3">
+                <button type="button" onClick={() => chooseTemplate(template.id)} className="text-left">
+                  <strong className="block text-xs font-black uppercase">{template.name}</strong>
+                  <small className="font-mono text-[9px] uppercase">{template.title}</small>
+                </button>
+                <button type="button" onClick={() => void props.deleteNotificationTemplate(template.id).catch((requestError) => setError(requestError instanceof Error ? requestError.message : "Falha."))} className="border-2 border-[#1A1A1A] bg-[#A91D11] px-2 font-mono text-[9px] font-black uppercase text-white">Excluir</button>
+              </div>
+            ))}
+          </div>
+        </DataCard>
+      )}
+
+      <DataCard title="Histórico de comunicados" index={`${props.notificationCampaigns.length}`}>
+        {props.notificationCampaigns.length === 0 ? (
+          <p className="font-mono text-xs uppercase">Nenhum comunicado registrado.</p>
+        ) : (
+          <div className="max-h-[520px] overflow-y-auto divide-y-2 divide-[#1A1A1A] border-y-2 border-[#1A1A1A]">
+            {props.notificationCampaigns.map((campaign) => (
+              <article key={campaign.id} className="py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <strong className="text-xs font-black uppercase">{campaign.title}</strong>
+                  <span className="border-2 border-[#1A1A1A] bg-gray-200 px-2 py-1 font-mono text-[8px] font-black">{notificationStatus[campaign.status] ?? campaign.status}</span>
+                </div>
+                <p className="mt-2 font-mono text-[9px] uppercase leading-4">{campaign.body}</p>
+                <p className="mt-2 font-mono text-[8px] font-black uppercase text-gray-600">
+                  {campaign.scheduledAt ? `PREVISTA: ${new Date(campaign.scheduledAt).toLocaleString("pt-BR")}` : `CRIADA: ${new Date(campaign.createdAt.replace(" ", "T") + "Z").toLocaleString("pt-BR")}`}
+                  {` // OK ${campaign.sentCount} // FALHAS ${campaign.failedCount}`}
+                </p>
+                {campaign.status === "scheduled" && (
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <button type="button" disabled={busy} onClick={() => void props.updateNotification(campaign.id, "sendNow").then(() => props.notify("NOTIFICAÇÃO DISPARADA")).catch((requestError) => setError(requestError instanceof Error ? requestError.message : "Falha."))} className="border-2 border-[#1A1A1A] bg-[#A91D11] p-2 font-mono text-[9px] font-black uppercase text-white">Enviar agora</button>
+                    <button type="button" disabled={busy} onClick={() => void props.updateNotification(campaign.id, "cancel").then(() => props.notify("AGENDAMENTO CANCELADO")).catch((requestError) => setError(requestError instanceof Error ? requestError.message : "Falha."))} className="border-2 border-[#1A1A1A] bg-white p-2 font-mono text-[9px] font-black uppercase">Cancelar</button>
+                  </div>
+                )}
+              </article>
+            ))}
+          </div>
+        )}
+      </DataCard>
+      {error && <ErrorBox message={error} />}
+    </section>
+  );
+}
+
 function SettingsModule(props: Props) {
   const [error, setError] = useState("");
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -1060,5 +1279,6 @@ export function AdminModule(props: Props) {
   if (props.section === "suppliers") return <SuppliersModule {...props} />;
   if (props.section === "reports") return <ReportsModule {...props} />;
   if (props.section === "staff") return <StaffModule {...props} />;
+  if (props.section === "notifications") return <NotificationsModule {...props} />;
   return <SettingsModule {...props} />;
 }

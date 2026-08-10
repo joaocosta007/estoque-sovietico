@@ -825,6 +825,7 @@ const menuEntries: [string, string, string, AdminSection][] = [
   ["05", "Equipe e acessos", "Permissões RBAC", "staff"],
   ["06", "Configurações", "Dados do comércio", "settings"],
   ["07", "Cancelar venda", "Estorno de operação", "sales"],
+  ["08", "Notificações", "Disparos e agendamentos", "notifications"],
 ];
 
 function MenuScreen({
@@ -1007,6 +1008,9 @@ export function Dashboard() {
             suppliers={admin.suppliers}
             staff={admin.staff}
             settings={admin.settings}
+            notificationTemplates={admin.notificationTemplates}
+            pushRecipients={admin.pushRecipients}
+            notificationCampaigns={admin.notificationCampaigns}
             products={store.products}
             sales={store.sales}
             todayTotalCents={store.todayTotalCents}
@@ -1022,6 +1026,10 @@ export function Dashboard() {
             createStaff={admin.createStaff}
             updateStaffPermissions={admin.updateStaffPermissions}
             saveSettings={admin.saveSettings}
+            createNotification={admin.createNotification}
+            updateNotification={admin.updateNotification}
+            createNotificationTemplate={admin.createNotificationTemplate}
+            deleteNotificationTemplate={admin.deleteNotificationTemplate}
             cancelSale={async (id, reason) => {
               await store.cancelSale(id, reason);
               await admin.refresh();

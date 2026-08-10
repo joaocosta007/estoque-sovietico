@@ -31,6 +31,17 @@ const changePasswordPageUrl = new URL(
   "../app/trocar-senha/page.tsx",
   import.meta.url,
 );
+const pushCardUrl = new URL(
+  "../app/catalogo/push-subscription-card.tsx",
+  import.meta.url,
+);
+const notificationsApiUrl = new URL(
+  "../app/api/notifications/route.ts",
+  import.meta.url,
+);
+const pushServiceUrl = new URL("../lib/push.ts", import.meta.url);
+const serviceWorkerUrl = new URL("../public/sw.js", import.meta.url);
+const vercelUrl = new URL("../vercel.json", import.meta.url);
 
 test("publica a landing dos camaradas com fotos e acesso ao catálogo", async () => {
   const [landing, proxy] = await Promise.all([
@@ -178,4 +189,44 @@ test("está preparado para Next.js e PostgreSQL na Vercel", async () => {
   assert.doesNotMatch(schema, /sqlite-core/);
   assert.match(proxy, /SESSION_COOKIE/);
   assert.match(proxy, /"\/catalogo"/);
+});
+
+test("inscreve aparelhos e recebe Web Push pelo service worker", async () => {
+  const [card, worker, proxy, schema] = await Promise.all([
+    readFile(pushCardUrl, "utf8"),
+    readFile(serviceWorkerUrl, "utf8"),
+    readFile(proxyUrl, "utf8"),
+    readFile(schemaUrl, "utf8"),
+  ]);
+
+  assert.match(card, /Notification\.requestPermission/);
+  assert.match(card, /pushManager\.subscribe/);
+  assert.match(card, /\/api\/push\/subscriptions/);
+  assert.match(worker, /addEventListener\("push"/);
+  assert.match(worker, /showNotification/);
+  assert.match(worker, /notificationclick/);
+  assert.match(proxy, /"\/api\/push\/subscriptions"/);
+  assert.match(schema, /export const pushSubscriptions/);
+});
+
+test("administra templates, disparos imediatos e agendados", async () => {
+  const [dashboard, modules, route, pushService, schema, vercel] =
+    await Promise.all([
+      readFile(dashboardUrl, "utf8"),
+      readFile(adminModulesUrl, "utf8"),
+      readFile(notificationsApiUrl, "utf8"),
+      readFile(pushServiceUrl, "utf8"),
+      readFile(schemaUrl, "utf8"),
+      readFile(vercelUrl, "utf8"),
+    ]);
+
+  assert.match(dashboard, /Notificações/);
+  assert.match(modules, /Disparar agora/);
+  assert.match(modules, /Agendar comunicado/);
+  assert.match(modules, /Criar template/);
+  assert.match(route, /sendNotificationCampaign/);
+  assert.match(pushService, /webpush\.sendNotification/);
+  assert.match(schema, /export const notificationCampaigns/);
+  assert.match(schema, /export const notificationDeliveries/);
+  assert.match(vercel, /api\/notifications\/process/);
 });

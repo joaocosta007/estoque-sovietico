@@ -22,6 +22,13 @@
       "when": 1785617425546,
       "tag": "0002_thick_robin_chapel",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786331475908,
+      "tag": "0003_chunky_lady_bullseye",
+      "breakpoints": true
     }
   ]
 }

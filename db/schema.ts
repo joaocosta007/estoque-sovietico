@@ -213,3 +213,86 @@ export const appSettings = pgTable("app_settings", {
   value: text("value").notNull(),
   updatedAt: updatedAt(),
 });
+
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: text("id").primaryKey(),
+    endpoint: text("endpoint").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    label: text("label").notNull().default("CELULAR SEM IDENTIFICAÇÃO"),
+    active: boolean("active").notNull().default(true),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("push_subscriptions_endpoint_unique").on(table.endpoint),
+    index("push_subscriptions_active_idx").on(table.active),
+  ],
+);
+
+export const notificationTemplates = pgTable(
+  "notification_templates",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    targetUrl: text("target_url").notNull().default("/catalogo"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [uniqueIndex("notification_templates_name_unique").on(table.name)],
+);
+
+export const notificationCampaigns = pgTable(
+  "notification_campaigns",
+  {
+    id: text("id").primaryKey(),
+    templateId: text("template_id").references(() => notificationTemplates.id, {
+      onDelete: "set null",
+    }),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    targetUrl: text("target_url").notNull().default("/catalogo"),
+    audience: text("audience").notNull().default("all"),
+    status: text("status").notNull().default("scheduled"),
+    scheduledAt: text("scheduled_at"),
+    sentAt: text("sent_at"),
+    createdBy: text("created_by").notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    index("notification_campaigns_due_idx").on(table.status, table.scheduledAt),
+    check(
+      "notification_campaigns_status_valid",
+      sql`${table.status} IN ('pending', 'scheduled', 'sending', 'sent', 'partial', 'failed', 'cancelled')`,
+    ),
+  ],
+);
+
+export const notificationDeliveries = pgTable(
+  "notification_deliveries",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => notificationCampaigns.id, { onDelete: "cascade" }),
+    subscriptionId: text("subscription_id")
+      .notNull()
+      .references(() => pushSubscriptions.id, { onDelete: "cascade" }),
+    status: text("status").notNull().default("pending"),
+    error: text("error").notNull().default(""),
+    sentAt: text("sent_at"),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("notification_deliveries_campaign_subscription_unique").on(
+      table.campaignId,
+      table.subscriptionId,
+    ),
+    index("notification_deliveries_campaign_idx").on(table.campaignId),
+  ],
+);

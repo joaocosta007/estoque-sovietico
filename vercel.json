@@ -14,5 +14,11 @@
         "service": "frontend"
       }
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/notifications/process",
+      "schedule": "0 12 * * *"
+    }
   ]
 }

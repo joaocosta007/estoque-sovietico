@@ -60,6 +60,37 @@ export type AppSettings = {
   whatsapp_number?: string;
 };
 
+export type NotificationTemplate = {
+  id: string;
+  name: string;
+  title: string;
+  body: string;
+  targetUrl: string;
+  createdAt: string;
+};
+
+export type PushRecipient = {
+  id: string;
+  label: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type NotificationCampaign = {
+  id: string;
+  title: string;
+  body: string;
+  targetUrl: string;
+  audience: string;
+  status: string;
+  scheduledAt: string | null;
+  sentAt: string | null;
+  createdAt: string;
+  sentCount: number;
+  failedCount: number;
+};
+
 async function api<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...options,
@@ -82,6 +113,9 @@ export function useAdminStore() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [settings, setSettings] = useState<AppSettings>({});
+  const [notificationTemplates, setNotificationTemplates] = useState<NotificationTemplate[]>([]);
+  const [pushRecipients, setPushRecipients] = useState<PushRecipient[]>([]);
+  const [notificationCampaigns, setNotificationCampaigns] = useState<NotificationCampaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -95,6 +129,7 @@ export function useAdminStore() {
         supplierData,
         staffData,
         settingsData,
+        notificationData,
       ] = await Promise.all([
         api<{ customers: Customer[] }>("/api/customers"),
         api<{ entries: LedgerEntry[] }>("/api/customer-ledger"),
@@ -102,6 +137,11 @@ export function useAdminStore() {
         api<{ suppliers: Supplier[] }>("/api/suppliers"),
         api<{ staff: StaffMember[] }>("/api/staff"),
         api<{ settings: AppSettings }>("/api/settings"),
+        api<{
+          templates: NotificationTemplate[];
+          subscriptions: PushRecipient[];
+          campaigns: NotificationCampaign[];
+        }>("/api/notifications"),
       ]);
       setCustomers(customerData.customers);
       setLedger(ledgerData.entries);
@@ -109,6 +149,9 @@ export function useAdminStore() {
       setSuppliers(supplierData.suppliers);
       setStaff(staffData.staff);
       setSettings(settingsData.settings);
+      setNotificationTemplates(notificationData.templates);
+      setPushRecipients(notificationData.subscriptions);
+      setNotificationCampaigns(notificationData.campaigns);
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -137,6 +180,9 @@ export function useAdminStore() {
     suppliers,
     staff,
     settings,
+    notificationTemplates,
+    pushRecipients,
+    notificationCampaigns,
     loading,
     error,
     refresh,
@@ -154,5 +200,17 @@ export function useAdminStore() {
     updateStaffPermissions: (id: string, permissions: string[]) =>
       send("/api/staff", "PATCH", { id, permissions }),
     saveSettings: (body: AppSettings) => send("/api/settings", "PATCH", body),
+    createNotification: (body: unknown) => send("/api/notifications", "POST", body),
+    updateNotification: (id: string, action: "cancel" | "sendNow") =>
+      send("/api/notifications", "PATCH", { id, action }),
+    createNotificationTemplate: (body: unknown) =>
+      send("/api/notification-templates", "POST", body),
+    deleteNotificationTemplate: async (id: string) => {
+      await api("/api/notification-templates", {
+        method: "DELETE",
+        body: JSON.stringify({ id }),
+      });
+      await refresh();
+    },
   };
 }

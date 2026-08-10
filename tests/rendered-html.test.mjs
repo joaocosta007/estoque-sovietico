@@ -42,6 +42,7 @@ const notificationsApiUrl = new URL(
 const pushServiceUrl = new URL("../lib/push.ts", import.meta.url);
 const serviceWorkerUrl = new URL("../public/sw.js", import.meta.url);
 const vercelUrl = new URL("../vercel.json", import.meta.url);
+const manifestUrl = new URL("../public/manifest.webmanifest", import.meta.url);
 
 test("publica a landing dos camaradas com fotos e acesso ao catálogo", async () => {
   const [landing, proxy] = await Promise.all([
@@ -229,4 +230,18 @@ test("administra templates, disparos imediatos e agendados", async () => {
   assert.match(schema, /export const notificationCampaigns/);
   assert.match(schema, /export const notificationDeliveries/);
   assert.match(vercel, /api\/notifications\/process/);
+});
+
+test("usa o novo símbolo no PWA e nas notificações", async () => {
+  const [worker, manifest, layout] = await Promise.all([
+    readFile(serviceWorkerUrl, "utf8"),
+    readFile(manifestUrl, "utf8"),
+    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(worker, /\/icons\/notification-icon\.png/);
+  assert.match(worker, /\/icons\/notification-badge\.png/);
+  assert.match(manifest, /\/icons\/app-icon-192\.png/);
+  assert.match(manifest, /\/icons\/app-icon-512\.png/);
+  assert.match(layout, /\/icons\/apple-touch-icon\.png/);
 });

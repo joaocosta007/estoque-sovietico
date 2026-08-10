@@ -1,5 +1,10 @@
-const CACHE = "estoque-public-v3";
-const SHELL = ["/manifest.webmanifest", "/favicon.svg"];
+const CACHE = "estoque-public-v4";
+const SHELL = [
+  "/manifest.webmanifest",
+  "/icons/app-icon-192.png",
+  "/icons/notification-icon.png",
+  "/icons/notification-badge.png",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));
@@ -51,8 +56,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(title, {
       body: data.body || "Novo comunicado disponível.",
-      icon: "/favicon.svg",
-      badge: "/favicon.svg",
+      icon: "/icons/notification-icon.png",
+      badge: "/icons/notification-badge.png",
       tag: data.campaignId || "estoque-sovietico",
       renotify: true,
       data: { url: data.url || "/catalogo" },

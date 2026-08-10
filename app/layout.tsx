@@ -25,7 +25,14 @@ export async function generateMetadata(): Promise<Metadata> {
     title: "Estoque Soviético",
     description: "Controle operacional de estoque, vendas e crédito.",
     manifest: "/manifest.webmanifest",
-    icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
+    icons: {
+      icon: [
+        { url: "/icons/favicon-48.png", type: "image/png", sizes: "48x48" },
+        { url: "/icons/app-icon-192.png", type: "image/png", sizes: "192x192" },
+      ],
+      shortcut: "/icons/favicon-48.png",
+      apple: "/icons/apple-touch-icon.png",
+    },
     openGraph: {
       title: "Estoque Soviético",
       description: "Controle operacional de estoque, vendas e crédito.",

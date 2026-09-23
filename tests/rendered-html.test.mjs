@@ -257,6 +257,8 @@ test("aplica acréscimo único de 10% somente em compras fiadas vencidas", async
 
   assert.match(credit, /30 \* 24 \* 60 \* 60 \* 1000/);
   assert.match(credit, /Math\.ceil\(remaining \* 0\.1\)/);
+  assert.match(credit, /Payments are allocated FIFO/);
+  assert.match(credit, /filter\(\(row\) => row\.type === "payment"\)/);
   assert.match(credit, /ON CONFLICT \(late_fee_for_id\) DO NOTHING/);
   assert.match(credit, /Acréscimo de atraso \(10%\)/);
   assert.match(ledgerRoute, /applyLateFees/);

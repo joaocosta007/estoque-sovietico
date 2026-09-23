@@ -52,13 +52,14 @@ export async function applyLateFees() {
     }
 
     for (const customerRows of byCustomer.values()) {
-      let paymentPool = 0;
-      for (const row of customerRows) {
-        if (row.type === "payment") {
-          paymentPool += row.amountCents;
-          continue;
-        }
+      // Payments are allocated FIFO: the oldest purchase is settled first,
+      // even though the payment was registered after that purchase.
+      let paymentPool = customerRows
+        .filter((row) => row.type === "payment")
+        .reduce((total, row) => total + row.amountCents, 0);
+      const debitRows = customerRows.filter((row) => row.type === "debit");
 
+      for (const row of debitRows) {
         const remaining = Math.max(0, row.amountCents - paymentPool);
         paymentPool = Math.max(0, paymentPool - row.amountCents);
         if (

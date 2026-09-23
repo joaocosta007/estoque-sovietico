@@ -29,6 +29,13 @@
       "when": 1786331475908,
       "tag": "0003_chunky_lady_bullseye",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788544800000,
+      "tag": "0004_add_late_fee_reference",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,6 @@
 import { getSql } from "../../../db";
 import { requireAdminApi } from "../../../lib/auth";
+import { applyLateFees } from "../../../lib/credit";
 
 type LedgerRow = {
   id: string;
@@ -17,6 +18,7 @@ export async function GET(request: Request) {
   const unauthorized = await requireAdminApi();
   if (unauthorized) return unauthorized;
   try {
+    await applyLateFees();
     const customerId = new URL(request.url).searchParams.get("customerId");
     const sql = getSql();
     const baseColumns = sql`
@@ -51,6 +53,7 @@ export async function POST(request: Request) {
   const unauthorized = await requireAdminApi();
   if (unauthorized) return unauthorized;
   try {
+    await applyLateFees();
     const body = (await request.json()) as Record<string, unknown>;
     const customerId = String(body.customerId ?? "").trim();
     const type = String(body.type ?? "");

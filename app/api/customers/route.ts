@@ -1,5 +1,6 @@
 import { getSql } from "../../../db";
 import { requireAdminApi } from "../../../lib/auth";
+import { applyLateFees } from "../../../lib/credit";
 
 type CustomerRow = {
   id: string;
@@ -23,6 +24,7 @@ export async function GET() {
   const unauthorized = await requireAdminApi();
   if (unauthorized) return unauthorized;
   try {
+    await applyLateFees();
     const sql = getSql();
     const customers = await sql<CustomerRow[]>`
       SELECT

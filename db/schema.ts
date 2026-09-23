@@ -86,6 +86,7 @@ export const customerLedger = pgTable(
     description: text("description").notNull(),
     saleId: text("sale_id").references(() => sales.id),
     dueDate: text("due_date"),
+    lateFeeForId: text("late_fee_for_id"),
     createdAt: createdAt(),
   },
   (table) => [
@@ -93,6 +94,7 @@ export const customerLedger = pgTable(
       table.customerId,
       table.createdAt,
     ),
+    uniqueIndex("customer_ledger_late_fee_for_unique").on(table.lateFeeForId),
     check(
       "customer_ledger_amount_positive",
       sql`${table.amountCents} > 0`,

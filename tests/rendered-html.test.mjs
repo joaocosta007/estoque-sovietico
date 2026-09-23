@@ -43,6 +43,7 @@ const pushServiceUrl = new URL("../lib/push.ts", import.meta.url);
 const serviceWorkerUrl = new URL("../public/sw.js", import.meta.url);
 const vercelUrl = new URL("../vercel.json", import.meta.url);
 const manifestUrl = new URL("../public/manifest.webmanifest", import.meta.url);
+const creditServiceUrl = new URL("../lib/credit.ts", import.meta.url);
 
 test("publica a landing dos camaradas com fotos e acesso ao catálogo", async () => {
   const [landing, proxy] = await Promise.all([
@@ -244,4 +245,21 @@ test("usa o novo símbolo no PWA e nas notificações", async () => {
   assert.match(manifest, /\/icons\/app-icon-192\.png/);
   assert.match(manifest, /\/icons\/app-icon-512\.png/);
   assert.match(layout, /\/icons\/apple-touch-icon\.png/);
+});
+
+test("aplica acréscimo único de 10% somente em compras fiadas vencidas", async () => {
+  const [credit, ledgerRoute, schema, migration] = await Promise.all([
+    readFile(creditServiceUrl, "utf8"),
+    readFile(ledgerApiUrl, "utf8"),
+    readFile(schemaUrl, "utf8"),
+    readFile(new URL("../drizzle-postgres/0004_add_late_fee_reference.sql", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(credit, /30 \* 24 \* 60 \* 60 \* 1000/);
+  assert.match(credit, /Math\.ceil\(remaining \* 0\.1\)/);
+  assert.match(credit, /ON CONFLICT \(late_fee_for_id\) DO NOTHING/);
+  assert.match(credit, /Acréscimo de atraso \(10%\)/);
+  assert.match(ledgerRoute, /applyLateFees/);
+  assert.match(schema, /lateFeeForId: text\("late_fee_for_id"\)/);
+  assert.match(migration, /late_fee_for_id/);
 });

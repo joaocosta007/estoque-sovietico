@@ -2,6 +2,7 @@ import { desc } from "drizzle-orm";
 import { getDb, getSql } from "../../../db";
 import { sales } from "../../../db/schema";
 import { getAdminSession, requireAdminApi } from "../../../lib/auth";
+import { applyLateFees } from "../../../lib/credit";
 
 type SaleItemInput = {
   productId?: string;
@@ -173,6 +174,7 @@ export async function POST(request: Request) {
   const unauthorized = await requireAdminApi();
   if (unauthorized) return unauthorized;
   try {
+    await applyLateFees();
     const body = (await request.json()) as {
       items?: SaleItemInput[];
       paymentMethod?: string;

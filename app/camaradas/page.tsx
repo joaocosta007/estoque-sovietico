@@ -59,13 +59,15 @@ function RedStamp({ children }: { children: React.ReactNode }) {
 function CatalogButton({
   className = "",
   label = "Abrir catálogo dos camaradas",
+  href = "/catalogo",
 }: {
   className?: string;
   label?: string;
+  href?: string;
 }) {
   return (
     <Link
-      href="/catalogo"
+      href={href}
       className={`group inline-flex min-h-14 items-center justify-between gap-6 border-2 border-white bg-red-600 px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-white shadow-[6px_6px_0_0_#ffffff] transition-transform hover:-translate-y-1 focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-white active:translate-x-1 active:translate-y-1 active:shadow-none ${className}`}
     >
       <span>{label}</span>
@@ -96,10 +98,10 @@ export default function CamaradasLandingPage() {
             <span className="text-xl sm:text-2xl">Estoque Soviético</span>
           </Link>
           <Link
-            href="/catalogo"
+            href="/catalogo#avisos-camaradas"
             className="border-2 border-red-600 px-3 py-2 font-mono text-[10px] font-black uppercase tracking-[0.16em] text-white transition-colors hover:bg-red-600"
           >
-            Ver estoque ↗
+            Ativar avisos ↗
           </Link>
         </div>
       </header>
@@ -126,10 +128,13 @@ export default function CamaradasLandingPage() {
               o território.
             </p>
             <div className="mt-9">
-              <CatalogButton />
+              <CatalogButton
+                href="/catalogo#avisos-camaradas"
+                label="Ativar avisos dos camaradas"
+              />
             </div>
             <p className="mt-5 font-mono text-[10px] uppercase tracking-[0.14em] text-white/45">
-              Consulte produtos e disponibilidade em tempo real
+              Não fique de fora das reposições e comunicados do residencial
             </p>
           </div>
 
@@ -159,6 +164,28 @@ export default function CamaradasLandingPage() {
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="border-b-2 border-black bg-yellow-300 px-4 py-14 text-black sm:px-8 lg:py-20">
+        <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div>
+            <RedStamp>Protocolo // aviso direto</RedStamp>
+            <h2 className="mt-6 max-w-4xl text-5xl font-black uppercase leading-[0.84] tracking-[-0.06em] sm:text-7xl">
+              Não fique de fora.
+              <span className="block text-red-700">Torne-se um camarada.</span>
+            </h2>
+            <p className="mt-5 max-w-2xl border-l-4 border-red-700 pl-4 font-mono text-sm font-bold uppercase leading-6">
+              Ative as notificações no seu celular para saber quando chegar reposição,
+              aparecer uma novidade ou sair um comunicado importante. Quem está
+              inscrito recebe primeiro.
+            </p>
+          </div>
+          <CatalogButton
+            href="/catalogo#avisos-camaradas"
+            label="Quero receber os avisos"
+            className="border-black bg-red-700 text-white shadow-[6px_6px_0_0_#000] focus-visible:outline-black"
+          />
         </div>
       </section>
 
@@ -332,12 +359,14 @@ export default function CamaradasLandingPage() {
             <span className="block text-red-600">na vontade.</span>
           </h2>
           <p className="mx-auto mt-8 max-w-xl font-mono text-sm font-bold uppercase leading-6 text-white/60">
-            Entre no Catálogo dos Camaradas, veja o que está disponível agora e
-            faça sua solicitação.
+            Entre no Catálogo dos Camaradas, ative os avisos e receba as
+            próximas reposições direto no celular. Não deixe o seu quarto de
+            fora da operação.
           </p>
           <div className="mt-10">
             <CatalogButton
-              label="Entrar no catálogo dos camaradas"
+              href="/catalogo#avisos-camaradas"
+              label="Entrar no catálogo dos camaradas e ativar avisos"
               className="w-full max-w-lg"
             />
           </div>

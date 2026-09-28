@@ -58,6 +58,9 @@ test("publica a landing dos camaradas com fotos e acesso ao catálogo", async ()
   assert.match(landing, /\/landing\/camarada-residencial\.jpg/);
   assert.equal(landing.match(/\bunoptimized\b/g)?.length, 3);
   assert.match(landing, /Entrar no catálogo dos camaradas/i);
+  assert.match(landing, /Não fique de fora/i);
+  assert.match(landing, /Torne-se um camarada/i);
+  assert.match(landing, /\/catalogo#avisos-camaradas/);
   assert.match(landing, /href="\/catalogo"/);
   assert.match(proxy, /"\/camaradas"/);
 });

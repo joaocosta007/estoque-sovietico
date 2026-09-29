@@ -35,7 +35,11 @@ const products = entries(data.Produtos);
 const customers = entries(data.Clientes);
 const sales = entries(data.Cab_Venda);
 const payments = entries(data.Pagamentos);
-const paymentSaleIds = new Set(payments.map(([, p]) => String(p.uid_cab_venda || "")).filter(Boolean));
+const creditSaleIds = new Set(
+  sales
+    .filter(([, sale]) => n(sale.restante) > 0 || String(sale.status || "").toUpperCase() === "PENDENTE")
+    .map(([uid]) => String(uid)),
+);
 const details = data.Det_Venda ?? {};
 const productIds = new Set(products.map(([uid]) => String(uid)));
 const customerIds = new Set(customers.map(([uid]) => String(uid)));
@@ -49,14 +53,20 @@ for (const [saleUid, rows] of entries(details)) {
     saleItems.push({ id: id(row.uid || detailUid, `${saleUid}-${detailUid}`), saleId: String(saleUid), productId, productName: String(row.produto || "Produto importado"), quantityMilli: milli(row.quantidade), unitPriceCents: cents(row.valor_uni), lineTotalCents: cents(row.valor_total) });
   }
 }
+const saleItemsBySale = new Map();
+for (const item of saleItems) {
+  const list = saleItemsBySale.get(item.saleId) ?? [];
+  list.push(item);
+  saleItemsBySale.set(item.saleId, list);
+}
 
 const summary = {
   products: products.length,
   customers: customers.length,
   sales: sales.length,
   saleItems: saleItems.length,
-  creditSales: sales.filter(([, s]) => paymentSaleIds.has(String(s.uid)) || n(s.restante) > 0).length,
-  payments: payments.length,
+  creditSales: creditSaleIds.size,
+  payments: payments.filter(([, payment]) => creditSaleIds.has(String(payment.uid_cab_venda || ""))).length,
 };
 console.log(JSON.stringify({ backupDir, dryRun, summary }, null, 2));
 
@@ -91,41 +101,59 @@ try {
     await tx`delete from staff_members`;
     await tx`delete from app_settings`;
 
+    const productRows = [];
+    const movementRows = [];
     for (const [uid, p] of products) {
       const productId = String(uid);
       const barcode = String(p.cod_barra || "").trim() || null;
-      await tx`insert into products ${tx({ id: productId, sku: `LEGACY-${productId.slice(0, 24)}`, barcode, name: String(p.produto || "Produto sem nome"), photo_url: String(p.img0 || "").trim() || null, sale_price_cents: cents(p.valor_venda), stock_milli: milli(p.estoque_atual), min_stock_milli: milli(p.estoque_minimo), active: true })}`;
+      productRows.push({ id: productId, sku: `LEGACY-${productId.slice(0, 24)}`, barcode, name: String(p.produto || "Produto sem nome"), photo_url: String(p.img0 || "").trim() || null, sale_price_cents: cents(p.valor_venda), stock_milli: milli(p.estoque_atual), min_stock_milli: milli(p.estoque_minimo), active: true });
       const stock = milli(p.estoque_atual);
-      if (stock > 0) await tx`insert into stock_movements ${tx({ id: `legacy-opening-${productId}`, product_id: productId, type: "opening", quantity_milli: stock, reference_id: null, note: "Saldo importado do backup legado" })}`;
+      if (stock > 0) movementRows.push({ id: `legacy-opening-${productId}`, product_id: productId, type: "opening", quantity_milli: stock, reference_id: null, note: "Saldo importado do backup legado" });
     }
+    await tx`insert into products ${tx(productRows)}`;
+    if (movementRows.length) await tx`insert into stock_movements ${tx(movementRows)}`;
 
+    const customerRows = [];
     for (const [uid, c] of customers) {
       const customerId = String(uid);
       const address = [c.endereco, c.numero, c.bairro, c.cidade, c.uf].filter(Boolean).join(", ");
       const notes = [c.observacoes, c.email, address].filter(Boolean).join(" | ");
-      await tx`insert into customers ${tx({ id: customerId, name: String(c.nome || c.apelido || "Cliente sem nome"), phone: String(c.celular || c.telefone || ""), document: "", credit_limit_cents: 999999999, notes, active: String(c.status ?? "ATIVO").toUpperCase() !== "INATIVO" })}`;
+      customerRows.push({ id: customerId, name: String(c.nome || c.apelido || "Cliente sem nome"), phone: String(c.celular || c.telefone || ""), document: "", credit_limit_cents: 999999999, notes, active: String(c.status ?? "ATIVO").toUpperCase() !== "INATIVO" });
     }
+    await tx`insert into customers ${tx(customerRows)}`;
 
+    const saleRows = [];
+    const itemRows = [];
+    const debitRows = [];
     for (const [uid, s] of sales) {
       const saleId = String(uid);
       const customerId = customerIds.has(String(s.uid_cliente || "")) ? String(s.uid_cliente) : null;
-      const rows = saleItems.filter((item) => item.saleId === saleId);
+      const rows = saleItemsBySale.get(saleId) ?? [];
       const subtotal = rows.reduce((sum, item) => sum + item.lineTotalCents, 0) || cents(s.total);
       const total = cents(s.total);
-      const credit = paymentSaleIds.has(saleId) || n(s.restante) > 0;
-      await tx`insert into sales ${tx({ id: saleId, customer_id: customerId, subtotal_cents: subtotal, discount_cents: Math.max(0, subtotal - total), total_cents: total, payment_method: credit ? "credit" : "cash", status: "completed", cancelled_at: null, cancel_reason: "", cancelled_by: "", created_at: isoDate(s.data, s.hora) })}`;
-      for (const item of rows) await tx`insert into sale_items ${tx({ id: item.id, sale_id: saleId, product_id: item.productId, product_name: item.productName, quantity_milli: item.quantityMilli, unit_price_cents: item.unitPriceCents, line_total_cents: item.lineTotalCents })}`;
-      if (credit && customerId && total > 0) await tx`insert into customer_ledger ${tx({ id: `legacy-debit-${saleId}`, customer_id: customerId, type: "debit", amount_cents: total, description: "Venda fiada importada", sale_id: saleId, due_date: isoDate(s.data, s.hora).slice(0, 10), late_fee_for_id: null, created_at: isoDate(s.data, s.hora) })}`;
+      const credit = creditSaleIds.has(saleId);
+      saleRows.push({ id: saleId, customer_id: customerId, subtotal_cents: subtotal, discount_cents: Math.max(0, subtotal - total), total_cents: total, payment_method: credit ? "credit" : "cash", status: "completed", cancelled_at: null, cancel_reason: "", cancelled_by: "", created_at: isoDate(s.data, s.hora) });
+      for (const item of rows) itemRows.push({ id: item.id, sale_id: saleId, product_id: item.productId, product_name: item.productName, quantity_milli: item.quantityMilli, unit_price_cents: item.unitPriceCents, line_total_cents: item.lineTotalCents });
+      if (credit && customerId && total > 0) debitRows.push({ id: `legacy-debit-${saleId}`, customer_id: customerId, type: "debit", amount_cents: total, description: "Venda fiada importada", sale_id: saleId, due_date: isoDate(s.data, s.hora).slice(0, 10), late_fee_for_id: null, created_at: isoDate(s.data, s.hora) });
     }
+    await tx`insert into sales ${tx(saleRows)}`;
+    if (itemRows.length) await tx`insert into sale_items ${tx(itemRows)}`;
 
+    const paymentRows = [...debitRows];
     for (const [uid, p] of payments) {
+      const paymentSaleId = String(p.uid_cab_venda || "");
+      if (!creditSaleIds.has(paymentSaleId)) continue;
       const customerId = customerIds.has(String(p.uid_cliente || "")) ? String(p.uid_cliente) : null;
       if (!customerId || cents(p.valor) <= 0) continue;
-      await tx`insert into customer_ledger ${tx({ id: `legacy-payment-${String(uid)}`, customer_id: customerId, type: "payment", amount_cents: cents(p.valor), description: `Pagamento importado${p.formapgto ? ` via ${p.formapgto}` : ""}`, sale_id: String(p.uid_cab_venda || "") || null, due_date: null, late_fee_for_id: null, created_at: isoDate(p.data, p.hora) })}`;
+      paymentRows.push({ id: `legacy-payment-${String(uid)}`, customer_id: customerId, type: "payment", amount_cents: cents(p.valor), description: `Pagamento importado${p.formapgto ? ` via ${p.formapgto}` : ""}`, sale_id: paymentSaleId || null, due_date: null, late_fee_for_id: null, created_at: isoDate(p.data, p.hora) });
     }
+    if (paymentRows.length) await tx`insert into customer_ledger ${tx(paymentRows)}`;
 
     const company = data.Empresa ?? {};
     if (company.empresa) await tx`insert into app_settings ${tx({ key: "business_name", value: String(company.empresa) })}`;
+  }).catch((error) => {
+    console.error("Importação revertida pelo banco:", error?.message ?? error);
+    throw error;
   });
   console.log(`Importação concluída. Backup de segurança: ${backupPath}`);
 } finally {

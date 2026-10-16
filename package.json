@@ -17,7 +17,9 @@
     "db:import-legacy": "node scripts/import-legacy-backup.mjs"
   },
   "dependencies": {
+    "@gsap/react": "^2.1.2",
     "drizzle-orm": "0.45.2",
+    "gsap": "^3.15.0",
     "jose": "6.1.2",
     "next": "16.2.12",
     "postgres": "3.4.7",

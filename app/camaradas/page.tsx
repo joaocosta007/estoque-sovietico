@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { LandingMotion } from "./_components/landing-motion";
 import { Reveal } from "./_components/reveal";
 import styles from "./landing.module.css";
 
@@ -35,6 +36,7 @@ function PrimaryLink({ children, href, dark = false }: { children: React.ReactNo
 
 export default function CamaradasLandingPage() {
   return (
+    <LandingMotion>
     <main className={`${styles.page} min-h-dvh overflow-hidden font-sans`}>
       <div className="border-b border-black/10 bg-[#111] px-4 py-2 text-center font-mono text-[10px] font-bold uppercase tracking-[0.15em] text-white/75">Abastecimento entre camaradas · residencial universitário masculino</div>
       <header className="sticky top-0 z-40 border-b border-black/10 bg-[#f4f1eb]/90 backdrop-blur-md"><div className="mx-auto flex max-w-7xl items-center justify-between gap-5 px-5 py-4 sm:px-8"><Link href="/camaradas" className="min-w-0 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#b42318]" aria-label="Início do Estoque Soviético"><span className="block truncate font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-[#b42318]">Diretório de suprimentos</span><span className="block truncate text-lg font-black tracking-[-0.04em] sm:text-xl">Estoque Soviético</span></Link><Link href="/catalogo#avisos-camaradas" className="shrink-0 border-b-2 border-[#b42318] py-2 text-xs font-bold uppercase tracking-[0.08em] text-[#111] transition hover:text-[#b42318] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#b42318]">Ativar avisos</Link></div></header>
@@ -53,5 +55,6 @@ export default function CamaradasLandingPage() {
 
       <footer className="border-t border-white/15 bg-[#111] px-5 py-7 text-white sm:px-8"><div className="mx-auto flex max-w-7xl flex-col gap-4 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-white/50 sm:flex-row sm:items-center sm:justify-between"><p>Estoque Soviético · Abastecimento entre camaradas</p><nav className="flex gap-5" aria-label="Links do rodapé"><Link href="/catalogo" className="text-white transition hover:text-[#e04738] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">Catálogo</Link><Link href="/login" className="transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">Acesso administrativo</Link></nav></div></footer>
     </main>
+    </LandingMotion>
   );
 }
